@@ -57,20 +57,14 @@ export async function savePlace(place: PlaceInput, sources: Source[], images: Pl
 }
 export async function addCity(provinceName: string, cityName: string) {
   if(!provinceName.trim() || !cityName.trim()) throw new Error('Укажите провинцию и город.');
-  let {data:province,error} = await client().from('provinces').select('id').eq('name',provinceName.trim()).maybeSingle();
+  const {data,error} = await client().rpc('admin_upsert_city', {p_province_name:provinceName.trim(),p_city_name:cityName.trim()});
   if(error) throw error;
-  if(!province) {
-    const created=await client().from('provinces').insert({name:provinceName.trim()}).select('id').single();
-    if(created.error) throw created.error; province=created.data;
-  }
-  const result=await client().from('cities').insert({name:cityName.trim(),province_id:province!.id}).select('id').single();
-  if(result.error) throw result.error;
-  return result.data.id as string;
+  return z.uuid().parse(data);
 }
 export function friendlyError(error: unknown): string {
   if(error instanceof z.ZodError) return error.issues.map(i => i.message).join('. ');
   const e=error as {message?:string;code?:string};
-  const messages:Record<string,string>={editor_required:'Требуются права редактора.', concurrent_edit:'Объект уже изменён другим редактором. Откройте его заново перед сохранением.', review_required_for_status_change:'При изменении статусов добавьте запись проверки и подтверждающую ссылку.', review_evidence_required:'Для проверки нужна хотя бы одна ссылка http(s).', publication_requirements:'Для публикации нужны город, категория, источник и проверка существования объекта.', place_not_found:'Объект больше не существует.'};
+  const messages:Record<string,string>={editor_required:'Требуются права редактора.', invalid_city:'Проверьте названия провинции и города.', concurrent_edit:'Объект уже изменён другим редактором. Откройте его заново перед сохранением.', review_required_for_status_change:'При изменении статусов добавьте запись проверки и подтверждающую ссылку.', review_evidence_required:'Для проверки нужна хотя бы одна ссылка http(s).', publication_requirements:'Для публикации нужны город, категория, источник и проверка существования объекта.', place_not_found:'Объект больше не существует.'};
   if(e.code==='23505') return 'Такой slug, город или ссылка уже существуют.';
   if(e.code==='42501') return 'Недостаточно прав для этого действия.';
   if(e.code==='23514') return 'Проверьте координаты и условия публикации.';

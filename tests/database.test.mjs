@@ -59,9 +59,9 @@ test('migrations, coordinate constraints and access boundaries', async t => {
       assert.equal((await db.query('select * from public.attractions')).rows.length, 1);
       assert.equal((await db.query('select * from public.import_items')).rows.length, 0);
       assert.equal((await db.query('select * from public.verification_logs')).rows.length, 0);
-      assert.equal((await db.query("update public.attractions set name='hacked' returning id")).rows.length, 0);
     });
-    await assert.rejects(as('authenticated', alice, () => db.query("insert into public.attractions(slug,name) values ('bad','bad')")), /row-level security/);
+    await assert.rejects(as('authenticated', alice, () => db.query("update public.attractions set name='hacked' returning id")), /permission denied/);
+    await assert.rejects(as('authenticated', alice, () => db.query("insert into public.attractions(slug,name) values ('bad','bad')")), /permission denied/);
     await assert.rejects(as('authenticated', alice, () => db.query('insert into private.admins values ($1)', [alice])), /permission denied/);
   });
   await t.test('favorites belong to their owner and require a published attraction', async () => {
@@ -75,14 +75,14 @@ test('migrations, coordinate constraints and access boundaries', async t => {
     await assert.rejects(as('authenticated', alice, () => db.query('insert into public.favorites(user_id,attraction_id) values ($1,$2)', [bob,draft])), /row-level security/);
     await assert.rejects(as('authenticated', alice, () => db.query('insert into public.favorites(user_id,attraction_id) values ($1,$2)', [alice,draft])), /row-level security/);
   });
-  await t.test('admin can edit drafts and retain original import payloads', async () => {
+  await t.test('editors can read private catalog data but cannot write tables directly', async () => {
     await as('authenticated', admin, async () => {
       assert.equal((await db.query('select * from public.attractions')).rows.length, 2);
-      assert.equal((await db.query("update public.attractions set description='reviewed' where id=$1 returning id", [draft])).rows.length, 1);
-      const batch = (await db.query("insert into public.import_batches(source,filename) values ('baidu','sample.json') returning id")).rows[0].id;
-      await db.query('insert into public.import_items(batch_id,row_number,raw_data) values ($1,1,$2)', [batch,{raw:'unchanged'}]);
-      assert.equal((await db.query('select * from public.import_items')).rows.length, 2);
+      assert.equal((await db.query('select * from public.import_items')).rows.length, 1);
     });
+    await assert.rejects(as('authenticated', admin, () => db.query("update public.attractions set description='bypass' where id=$1", [draft])), /permission denied/);
+    await assert.rejects(as('authenticated', admin, () => db.query("insert into public.verification_logs(attraction_id,existence_status,visitor_status) values ($1,'exists','open')", [draft])), /permission denied/);
+    await assert.rejects(as('authenticated', admin, () => db.query('delete from public.verification_logs where attraction_id=$1', [draft])), /permission denied/);
   });
   await t.test('invalid coordinates and unverified publication are rejected', async () => {
     await assert.rejects(db.query("insert into public.attractions(slug,name,latitude,longitude) values ('invalid','Bad',91,120)"), /check constraint/);
@@ -94,6 +94,9 @@ test('migrations, coordinate constraints and access boundaries', async t => {
     return (await db.query('select public.admin_save_attraction($1::jsonb,$2::jsonb,$3::jsonb,$4::jsonb,$5::timestamptz) as result',
       [JSON.stringify(payload), JSON.stringify(sources), JSON.stringify(images), review === null ? null : JSON.stringify(review), expected])).rows[0].result;
   }
+  async function addCity(province, city) {
+    return (await db.query('select public.admin_upsert_city($1,$2) as id', [province, city])).rows[0].id;
+  }
   const newDraft = {slug:'rpc-draft',name:'RPC draft',existence_status:'unknown',visitor_status:'unknown',publication_status:'draft'};
   const source = {source_type:'official',source_url:'https://example.org/evidence'};
   await t.test('editor role RPC cannot be used for privilege escalation', async () => {
@@ -101,6 +104,7 @@ test('migrations, coordinate constraints and access boundaries', async t => {
     await as('authenticated', admin, async () => assert.equal((await db.query('select public.is_editor() as allowed')).rows[0].allowed, true));
     await assert.rejects(as('anon', null, () => db.query('select public.is_editor()')), /permission denied/);
     await assert.rejects(as('authenticated', alice, () => save(newDraft)), /editor_required/);
+    await assert.rejects(as('authenticated', alice, () => addCity('Test province','Test city')), /editor_required/);
     await assert.rejects(as('anon', null, () => save(newDraft)), /permission denied/);
   });
   await t.test('admin creates a draft and saves sources atomically', async () => {
@@ -116,8 +120,8 @@ test('migrations, coordinate constraints and access boundaries', async t => {
     await assert.rejects(as('authenticated', admin, () => save({...newDraft,existence_status:'exists'})), /review_required_for_status_change/);
     await assert.rejects(as('authenticated', admin, () => save(newDraft,[],[],{evidence_urls:[]})), /review_evidence_required/);
     await as('authenticated', admin, async () => {
-      const province=(await db.query("insert into public.provinces(name) values ('Test province') returning id")).rows[0].id;
-      const city=(await db.query("insert into public.cities(name,province_id) values ('Test city',$1) returning id",[province])).rows[0].id;
+      const city=await addCity('Test province','Test city');
+      assert.equal(await addCity('Test province','Test city'),city);
       const category=(await db.query('select id from public.categories limit 1')).rows[0].id;
       const result=await save({...newDraft,publication_status:'published',existence_status:'exists',latitude:30,longitude:120,city_id:city,category_id:category},[source],[],{evidence_urls:[source.source_url],notes:'Reviewed'});
       const row=(await db.query('select * from public.attractions where id=$1',[result.id])).rows[0];
