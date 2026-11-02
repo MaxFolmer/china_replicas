@@ -2,7 +2,7 @@
 
 Интерактивный атлас копий мировых достопримечательностей в Китае. Рабочее название можно изменить.
 
-Подготовлены React + TypeScript + Vite, Leaflet, подключение Supabase, схема БД с RLS, очередь импорта, тесты доступа и GitHub Actions. Публичных объектов пока нет: архив и результаты исследования ещё не загружены. Импортёр, авторизация в интерфейсе и админка — следующие этапы.
+Подготовлены React + TypeScript + Vite, Leaflet, подключение Supabase, схема БД с RLS, очередь импорта, тесты доступа и GitHub Actions. Публичных объектов пока нет: архив и результаты исследования ещё не загружены. Редактор каталога доступен на `/admin`: вход по ссылке на email, управление объектами, источниками, фотографиями и проверками. Импортёр архива — следующий этап. См. [инструкцию редактора](docs/ADMIN.md).
 
 ## Быстрый запуск
 
@@ -64,6 +64,6 @@ docs/                         архитектура и подключение �
 
 ## Облако и совместная работа
 
-См. [инструкцию подключения](docs/SETUP.md) и [архитектуру](docs/ARCHITECTURE.md). Эта заготовка не создаёт платных ресурсов. Созданы [GitHub-репозиторий](https://github.com/MaxFolmer/china_replicas) и [проект Supabase](https://supabase.com/dashboard/project/wxdpvxygeyieyurdqbup). Миграция `20261102000100_initial_schema` и категории применены к облачной базе через SQL Editor, версия зарегистрирована в истории миграций. Локальное приложение подключено через игнорируемый `.env.local`. Для другого компьютера нужно создать свой `.env.local` с Project URL и publishable key. Хостинг ещё не подключён.
+См. [инструкцию подключения](docs/SETUP.md) и [архитектуру](docs/ARCHITECTURE.md). Эта заготовка не создаёт платных ресурсов. Созданы [GitHub-репозиторий](https://github.com/MaxFolmer/china_replicas) и [проект Supabase](https://supabase.com/dashboard/project/wxdpvxygeyieyurdqbup). Миграции `initial_schema` и `admin_editor`, а также категории применены к облачной базе через SQL Editor; версии зарегистрированы в истории миграций. Локальное приложение подключено через игнорируемый `.env.local`. Для другого компьютера нужно создать свой `.env.local` с Project URL и publishable key. Хостинг ещё не подключён.
 
 Документация: [Vite](https://vite.dev/guide/), [локальная разработка Supabase](https://supabase.com/docs/guides/local-development/cli-workflows), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security).

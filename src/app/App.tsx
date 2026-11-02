@@ -55,7 +55,7 @@ export function App() {
             {place.image ? <img src={place.image} alt={place.name} loading="lazy" /> : <div className="photo-placeholder"><Icon name="landmark" size={30} /></div>}
           </button>)}</section>)}
       </div>
-      <div className="catalog-footer"><span>{demo ? 'Примеры · актуальность не проверена' : 'Исследуем архитектуру Китая'}</span><Icon name="compass" size={14} /></div>
+      <div className="catalog-footer"><span>{demo ? 'Примеры · актуальность не проверена' : 'Исследуем архитектуру Китая'}</span><a href="/admin" className="editor-entry">Редакторам ↗</a></div>
     </aside>}
     <aside className={`details-panel glass ${selected ? 'has-selection' : ''}`} aria-label="Информация о месте">
       {selected ? <>

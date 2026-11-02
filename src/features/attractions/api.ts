@@ -6,7 +6,7 @@ const attractionSchema = z.object({
   latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180),
   cities: z.object({ name: z.string() }).nullable(),
   categories: z.object({ slug: z.string(), name: z.string() }).nullable(),
-  attraction_images: z.array(z.object({ image_url: z.url(), attribution: z.string(), license: z.string(), source_url: z.url(), sort_order: z.number() })),
+  attraction_images: z.array(z.object({ image_url: z.url(), image_type: z.enum(['replica','original']), attribution: z.string(), license: z.string(), source_url: z.url(), sort_order: z.number() })),
 });
 export type Place = {
   id: string; name: string; original: string | null; description: string;
@@ -16,11 +16,11 @@ export type Place = {
 export async function listAttractions(signal: AbortSignal): Promise<Place[]> {
   if (!supabase) return [];
   const { data, error } = await supabase.from('attractions')
-    .select('id,name,original_name,description,latitude,longitude,cities(name),categories(slug,name),attraction_images(image_url,attribution,license,source_url,sort_order)')
+    .select('id,name,original_name,description,latitude,longitude,cities(name),categories(slug,name),attraction_images(image_url,image_type,attribution,license,source_url,sort_order)')
     .eq('publication_status', 'published').order('name').limit(1000).abortSignal(signal);
   if (error) throw new Error(error.message);
   return z.array(attractionSchema).parse(data).map(row => {
-    const image = row.attraction_images.sort((a, b) => a.sort_order - b.sort_order)[0];
+    const image = row.attraction_images.filter(image => image.image_type === 'replica').sort((a, b) => a.sort_order - b.sort_order)[0];
     return {
       id: row.id, name: row.name, original: row.original_name, description: row.description,
       latitude: row.latitude, longitude: row.longitude, city: row.cities?.name || 'Город не указан',

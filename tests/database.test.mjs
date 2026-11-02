@@ -90,4 +90,52 @@ test('migrations, coordinate constraints and access boundaries', async t => {
     await assert.rejects(db.query("update public.attractions set publication_status='published' where id=$1", [draft]), /check constraint/);
     await assert.rejects(db.query("insert into public.sources(attraction_id,source_type,source_url,source_latitude,source_longitude) values ($1,'baidu','https://example.org/point',30,120)", [draft]), /check constraint/);
   });
+  async function save(payload, sources = [], images = [], review = null, expected = null) {
+    return (await db.query('select public.admin_save_attraction($1::jsonb,$2::jsonb,$3::jsonb,$4::jsonb,$5::timestamptz) as result',
+      [JSON.stringify(payload), JSON.stringify(sources), JSON.stringify(images), review === null ? null : JSON.stringify(review), expected])).rows[0].result;
+  }
+  const newDraft = {slug:'rpc-draft',name:'RPC draft',existence_status:'unknown',visitor_status:'unknown',publication_status:'draft'};
+  const source = {source_type:'official',source_url:'https://example.org/evidence'};
+  await t.test('editor role RPC cannot be used for privilege escalation', async () => {
+    await as('authenticated', alice, async () => assert.equal((await db.query('select public.is_editor() as allowed')).rows[0].allowed, false));
+    await as('authenticated', admin, async () => assert.equal((await db.query('select public.is_editor() as allowed')).rows[0].allowed, true));
+    await assert.rejects(as('anon', null, () => db.query('select public.is_editor()')), /permission denied/);
+    await assert.rejects(as('authenticated', alice, () => save(newDraft)), /editor_required/);
+    await assert.rejects(as('anon', null, () => save(newDraft)), /permission denied/);
+  });
+  await t.test('admin creates a draft and saves sources atomically', async () => {
+    await as('authenticated', admin, async () => {
+      const result = await save(newDraft,[source]);
+      assert.ok(result.id); assert.ok(result.updated_at);
+      assert.equal((await db.query('select source_url from public.sources where attraction_id=$1',[result.id])).rows[0].source_url, source.source_url);
+      assert.equal((await db.query('select last_verified_at from public.attractions where id=$1',[result.id])).rows[0].last_verified_at,null);
+    });
+  });
+  await t.test('publication requires source, geography and an evidenced review', async () => {
+    await assert.rejects(as('authenticated', admin, () => save({...newDraft,publication_status:'published'})), /publication_requirements/);
+    await assert.rejects(as('authenticated', admin, () => save({...newDraft,existence_status:'exists'})), /review_required_for_status_change/);
+    await assert.rejects(as('authenticated', admin, () => save(newDraft,[],[],{evidence_urls:[]})), /review_evidence_required/);
+    await as('authenticated', admin, async () => {
+      const province=(await db.query("insert into public.provinces(name) values ('Test province') returning id")).rows[0].id;
+      const city=(await db.query("insert into public.cities(name,province_id) values ('Test city',$1) returning id",[province])).rows[0].id;
+      const category=(await db.query('select id from public.categories limit 1')).rows[0].id;
+      const result=await save({...newDraft,publication_status:'published',existence_status:'exists',latitude:30,longitude:120,city_id:city,category_id:category},[source],[],{evidence_urls:[source.source_url],notes:'Reviewed'});
+      const row=(await db.query('select * from public.attractions where id=$1',[result.id])).rows[0];
+      const log=(await db.query('select * from public.verification_logs where attraction_id=$1',[result.id])).rows[0];
+      assert.equal(row.publication_status,'published');assert.ok(row.last_verified_at);
+      assert.equal(log.verified_by,admin);assert.equal(log.notes,'Reviewed');
+      assert.equal(new Date(log.verified_at).getTime(),new Date(row.last_verified_at).getTime());
+    });
+  });
+  await t.test('stale saves are rejected instead of overwriting a newer edit', async () => {
+    await assert.rejects(as('authenticated',admin,()=>save({...newDraft,id:draft},[],[],null,'2000-01-01T00:00:00Z')), /concurrent_edit/);
+    assert.equal((await db.query('select name from public.attractions where id=$1',[draft])).rows[0].name,'Draft');
+  });
+  await t.test('a child write failure rolls back the object and source changes', async () => {
+    const before=(await db.query('select updated_at from public.attractions where id=$1',[draft])).rows[0].updated_at;
+    await assert.rejects(as('authenticated',admin,()=>save({...newDraft,id:draft,name:'Must roll back'},[source],[{image_url:'invalid',image_type:'replica',source_url:'https://example.org',license:'CC BY',attribution:'Test'}],null,before)), /check constraint/);
+    assert.equal((await db.query('select name from public.attractions where id=$1',[draft])).rows[0].name,'Draft');
+    assert.equal((await db.query('select source_url from public.sources where attraction_id=$1',[draft])).rows[0].source_url,'https://example.org/private');
+  });
+
 });
