@@ -3,33 +3,54 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../shared/lib/supabase';
 import { friendlyError, loadCatalog, type EditorPlace } from './api';
 import { PlaceEditor, publicationLabels } from './PlaceEditor';
+import { PasswordSettings } from './PasswordSettings';
 import './admin.css';
 function Login() {
-  const [email,setEmail]=useState('');const [busy,setBusy]=useState(false);const [sent,setSent]=useState(false);const [error,setError]=useState('');
+  const [email,setEmail]=useState('');const [password,setPassword]=useState('');
+  const [mode,setMode]=useState<'password'|'link'>('password');
+  const [busy,setBusy]=useState(false);const [sent,setSent]=useState(false);const [error,setError]=useState('');
+  function switchMode(value:'password'|'link'){setMode(value);setPassword('');setError('');setSent(false);}
   async function submit(e:FormEvent) {
     e.preventDefault();setBusy(true);setError('');
-    const {error}=await supabase!.auth.signInWithOtp({email:email.trim(),options:{emailRedirectTo:`${location.origin}/admin`,shouldCreateUser:true}});
-    if(error) setError(error.status===429?'Слишком много запросов. Подождите немного перед повторной отправкой.':'Не удалось отправить ссылку. Проверьте email и повторите попытку.');else setSent(true);
-    setBusy(false);
+    try {
+      if(mode==='password'){
+        const {error}=await supabase!.auth.signInWithPassword({email:email.trim(),password});
+        setPassword('');
+        if(error)setError(error.status===429?'Слишком много попыток. Подождите немного.':'Не удалось войти. Проверьте email и пароль или используйте вход по ссылке.');
+      }else{
+        const {error}=await supabase!.auth.signInWithOtp({email:email.trim(),options:{emailRedirectTo:`${location.origin}/admin`,shouldCreateUser:false}});
+        if(error)setError(error.status===429?'Слишком много запросов. Повторите позже.':'Не удалось отправить ссылку. Проверьте email и повторите попытку.');else setSent(true);
+      }
+    }catch{setError('Не удалось подключиться. Повторите попытку.');}
+    finally{setBusy(false);}
   }
-  return <main className="admin-login"><a className="admin-back" href="/">← Вернуться к карте</a><div className="login-card"><p className="admin-eyebrow">CHINA REPLICAS / РЕДАКЦИЯ</p><h1>Вход в редактор</h1><p>Управление местами, источниками и проверками.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="email" required value={email} disabled={busy} onChange={e=>{setEmail(e.target.value);setSent(false);}} placeholder="you@example.com"/></label><button className="admin-button primary" disabled={busy||sent}>{busy?'Отправляем…':sent?'Ссылка отправлена':'Получить ссылку для входа'}</button></form>{sent && <div className="admin-success" role="status">Проверьте почту и откройте ссылку в этом браузере. Право редактирования назначается отдельно владельцем проекта.</div>}{error && <p className="admin-alert" role="alert">{error}</p>}<small>Для входа не нужен пароль. Подтверждение email само по себе не даёт прав редактора.</small></div></main>;
+  return <main className="admin-login"><a className="admin-back" href="/">← Вернуться к карте</a><div className="login-card"><p className="admin-eyebrow">CHINA REPLICAS / РЕДАКЦИЯ</p><h1>Вход в редактор</h1><p>Управление местами, источниками и проверками.</p>
+    <div className="login-methods" role="group" aria-label="Способ входа"><button type="button" aria-pressed={mode==='password'} disabled={busy} onClick={()=>switchMode('password')}>По паролю</button><button type="button" aria-pressed={mode==='link'} disabled={busy} onClick={()=>switchMode('link')}>По ссылке</button></div>
+    <form onSubmit={submit}><label>Email<input type="email" autoComplete="username" required value={email} disabled={busy} onChange={e=>{setEmail(e.target.value);setSent(false);}} placeholder="you@example.com"/></label>
+      {mode==='password'&&<label>Пароль<input type="password" autoComplete="current-password" required value={password} disabled={busy} onChange={e=>setPassword(e.target.value)}/></label>}
+      <button className="admin-button primary" disabled={busy||(mode==='link'&&sent)}>{busy?'Подождите…':mode==='password'?'Войти':sent?'Ссылка отправлена':'Получить ссылку для входа'}</button>
+    </form>
+    {sent&&<div className="admin-success" role="status">Если аккаунт существует, письмо со ссылкой для входа отправлено. Проверьте почту.</div>}
+    {error&&<p className="admin-alert" role="alert">{error}</p>}
+    <small>{mode==='password'?'Пароль ещё не установлен или забыт? Войдите по ссылке, затем откройте «Пароль» в админке.':'Вход по ссылке доступен существующим аккаунтам. Право редактирования назначает владелец проекта.'}</small>
+  </div></main>;
 }
 function Workspace({session}:{session:Session}) {
   const [rows,setRows]=useState<EditorPlace[]>([]);const [count,setCount]=useState(0);const [page,setPage]=useState(0);
   const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [success,setSuccess]=useState('');
   const [search,setSearch]=useState('');const [status,setStatus]=useState('all');
-  const [selected,setSelected]=useState<EditorPlace|null|undefined>(undefined);const [dirty,setDirty]=useState(false);
+  const [selected,setSelected]=useState<EditorPlace|null|undefined>(undefined);const [dirty,setDirty]=useState(false);const [accountSettings,setAccountSettings]=useState(false);
   const load=useCallback(async()=>{setLoading(true);setError('');try{const result=await loadCatalog(page*50);setRows(result.rows);setCount(result.count);}catch(e){setError(friendlyError(e));}finally{setLoading(false);}},[page]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{const handler=(event:BeforeUnloadEvent)=>{if(dirty){event.preventDefault();event.returnValue='';}};window.addEventListener('beforeunload',handler);return()=>window.removeEventListener('beforeunload',handler);},[dirty]);
   function leave() {return !dirty || window.confirm('Есть несохранённые изменения. Закрыть редактор без сохранения?');}
-  function open(place:EditorPlace|null|undefined) {if(leave()){setSelected(place);setDirty(false);setSuccess('');}}
+  function open(place:EditorPlace|null|undefined) {if(leave()){setSelected(place);setAccountSettings(false);setDirty(false);setSuccess('');}}
   async function logout(){if(!leave())return;const {error}=await supabase!.auth.signOut();if(error)setError('Не удалось выйти. Попробуйте ещё раз.');}
   async function saved(){setDirty(false);setSelected(undefined);setSuccess('Объект сохранён.');await load();}
   const visible=rows.filter(p=>(status==='all'||p.publication_status===status)&&`${p.name} ${p.name_zh} ${p.slug}`.toLowerCase().includes(search.toLowerCase().trim()));
-  return <div className="admin-workspace"><header className="admin-header"><a className="admin-brand" href="/">CR <span>CHINA REPLICAS</span></a><span className="editor-label">Редактор каталога</span><div><span className="admin-email">{session.user.email}</span><button onClick={logout} className="admin-button">Выйти</button></div></header>
+  return <div className="admin-workspace"><header className="admin-header"><a className="admin-brand" href="/">CR <span>CHINA REPLICAS</span></a><span className="editor-label">Редактор каталога</span><div><span className="admin-email">{session.user.email}</span><button className="admin-button" onClick={()=>{if(leave()){setSelected(undefined);setDirty(false);setAccountSettings(true);}}}>Пароль</button><button onClick={logout} className="admin-button">Выйти</button></div></header>
     <div className="admin-shell"><aside className="admin-sidebar"><span className="admin-eyebrow">РАБОЧАЯ ОБЛАСТЬ</span><button className="sidebar-active" onClick={()=>open(undefined)}>Объекты <span>{count}</span></button><a href="/">Открыть карту ↗</a><p>Публикуйте объекты после проверки координат и источников.</p></aside>
-    <main className="admin-main">{selected!==undefined?<PlaceEditor key={selected?.id || 'new'} place={selected} onDirty={setDirty} onCancel={()=>open(undefined)} onSaved={saved}/>:<>
+    <main className="admin-main">{accountSettings?<PasswordSettings onClose={()=>setAccountSettings(false)}/>:selected!==undefined?<PlaceEditor key={selected?.id || 'new'} place={selected} onDirty={setDirty} onCancel={()=>open(undefined)} onSaved={saved}/>:<>
       <div className="editor-heading"><div><p className="admin-eyebrow">КАТАЛОГ</p><h1>Объекты</h1><p className="admin-subtitle">Черновики, опубликованные места и архив</p></div><button className="admin-button primary" onClick={()=>open(null)}>+ Новое место</button></div>
       {error&&<div className="admin-alert" role="alert">{error}<button onClick={load}>Повторить</button></div>}{success&&<div className="admin-success" role="status">{success}</div>}
       <div className="admin-filters"><label><span className="visually-hidden">Поиск на текущей странице</span><input placeholder="Поиск по названию или slug" value={search} onChange={e=>setSearch(e.target.value)}/></label><label><span className="visually-hidden">Статус объекта</span><select value={status} onChange={e=>setStatus(e.target.value)}><option value="all">Все статусы</option>{Object.entries(publicationLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label><span>Поиск по текущей странице</span></div>
@@ -39,7 +60,7 @@ function Workspace({session}:{session:Session}) {
 }
 export default function AdminApp() {
   const [session,setSession]=useState<Session|null>(null);const [loading,setLoading]=useState(true);
-  const [editor,setEditor]=useState<boolean|null>(null);const [error,setError]=useState('');const [attempt,setAttempt]=useState(0);
+  const [editor,setEditor]=useState<boolean|null>(null);const [checkedUserId,setCheckedUserId]=useState<string|null>(null);const userId=session?.user.id;const [error,setError]=useState('');const [attempt,setAttempt]=useState(0);
   useEffect(()=>{
     if(!supabase){setLoading(false);return;}
     let active=true;
@@ -48,14 +69,14 @@ export default function AdminApp() {
     return()=>{active=false;data.subscription.unsubscribe();};
   },[]);
   useEffect(()=>{
-    setEditor(null);setError('');if(!session)return;
-    let active=true;supabase!.rpc('is_editor').then(({data,error})=>{if(active){if(error)setError('Не удалось проверить права. Проверьте подключение и применение миграции админки.');else setEditor(data===true);}});
+    setEditor(null);setCheckedUserId(null);setError('');if(!userId)return;
+    let active=true;supabase!.rpc('is_editor').then(({data,error})=>{if(active){if(error)setError('Не удалось проверить права. Проверьте подключение и применение миграции админки.');else {setEditor(data===true);setCheckedUserId(userId);}}});
     return()=>{active=false;};
-  },[session,attempt]);
+  },[userId,attempt]);
   if(!supabase)return <main className="admin-message"><h1>База не подключена</h1><p>Настройте переменные подключения Supabase.</p><a href="/">К карте</a></main>;
   if(loading)return <main className="admin-message" role="status">Проверяем сеанс…</main>;
   if(!session)return <Login/>;
   if(error||editor===false)return <main className="admin-message"><p className="admin-eyebrow">CHINA REPLICAS / РЕДАКЦИЯ</p><h1>{error?'Не удалось проверить доступ':'Доступ редактора не назначен'}</h1><p>{error||`Вы вошли как ${session.user.email}. Владелец проекта должен назначить права этому аккаунту.`}</p><div><button className="admin-button" onClick={()=>setAttempt(n=>n+1)}>Проверить доступ</button><button className="admin-button" onClick={()=>supabase!.auth.signOut()}>Выйти</button><a href="/">К карте</a></div></main>;
-  if(editor===null)return <main className="admin-message" role="status">Проверяем права редактора…</main>;
+  if(editor===null||checkedUserId!==session.user.id)return <main className="admin-message" role="status">Проверяем права редактора…</main>;
   return <Workspace session={session}/>;
 }
