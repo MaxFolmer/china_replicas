@@ -64,6 +64,6 @@ docs/                         архитектура и подключение �
 
 ## Облако и совместная работа
 
-См. [инструкцию подключения](docs/SETUP.md) и [архитектуру](docs/ARCHITECTURE.md). Эта заготовка не создаёт платных ресурсов. Удалённый GitHub-репозиторий, облачный Supabase и хостинг подключаются отдельно.
+См. [инструкцию подключения](docs/SETUP.md) и [архитектуру](docs/ARCHITECTURE.md). Эта заготовка не создаёт платных ресурсов. Созданы [GitHub-репозиторий](https://github.com/MaxFolmer/china_replicas) и [проект Supabase](https://supabase.com/dashboard/project/wxdpvxygeyieyurdqbup). Для подключения базы нужны вход в аккаунт, применение миграций и публичный ключ. Хостинг ещё не подключён.
 
 Документация: [Vite](https://vite.dev/guide/), [локальная разработка Supabase](https://supabase.com/docs/guides/local-development/cli-workflows), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security).

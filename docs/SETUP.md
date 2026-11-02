@@ -4,24 +4,29 @@
 
 ## 1. GitHub
 
-Создайте пустой приватный репозиторий `china-replicas` без README, лицензии и .gitignore: они уже есть локально. В локальном проекте:
+Репозиторий уже создан: [MaxFolmer/china_replicas](https://github.com/MaxFolmer/china_replicas). Он публичный. Клонирование для второго разработчика:
 
 ```sh
-git remote add origin https://github.com/OWNER/china-replicas.git
-git push -u origin main
+git clone https://github.com/MaxFolmer/china_replicas.git
+cd china_replicas
+npm ci
+npm run dev
 ```
 
-Замените OWNER на имя аккаунта. Пригласите друга через Settings → Collaborators. После первого успешного CI настройте защиту main с обязательной проверкой `check` и работой через pull request. Если приватный тариф не поддерживает защиту веток, договоритесь о PR в команде.
+Пригласите друга через Settings → Collaborators. После первого успешного CI настройте защиту main с обязательной проверкой `check` и работой через pull request. Если приватный тариф не поддерживает защиту веток, договоритесь о PR в команде.
 
 ## 2. Supabase
 
-Создайте проект в своём аккаунте, выберите подходящий регион для пользователей и сохраните пароль БД в менеджере паролей. Не включайте private в exposed schemas. Для начала достаточно одного проекта разработки; production стоит выделить перед запуском.
+Проект уже создан: [wxdpvxygeyieyurdqbup](https://supabase.com/dashboard/project/wxdpvxygeyieyurdqbup).
+API URL: `https://wxdpvxygeyieyurdqbup.supabase.co`.
+
+Не включайте private в exposed schemas. Для начала достаточно одного проекта разработки; production стоит выделить перед запуском.
 
 ```sh
 npx supabase login
-npx supabase link --project-ref YOUR_PROJECT_REF
-npx supabase db push --dry-run
-npx supabase db push
+npm run db:link
+npm run db:push:preview
+npm run db:push
 ```
 
 `db push` применяет миграции к выбранному облачному проекту. Перед подтверждением проверьте project-ref. `seed.sql` предназначен для локального запуска: категории для облака добавьте отдельно через SQL Editor из этого файла. Секреты не задавайте в аргументах команд.

@@ -17,7 +17,10 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset --local",
     "db:status": "supabase status",
-    "db:types": "node scripts/generate-db-types.mjs"
+    "db:types": "node scripts/generate-db-types.mjs",
+    "db:link": "supabase link --project-ref wxdpvxygeyieyurdqbup",
+    "db:push:preview": "supabase db push --dry-run",
+    "db:push": "supabase db push"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
