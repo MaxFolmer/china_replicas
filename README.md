@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-Открыть http://localhost:5173. Без `.env.local` работает карта с пустым каталогом. Тайлы требуют интернет. Не подключайте служебные ключи в переменные `VITE_*`: они попадают в браузер.
+Открыть http://localhost:5173. Для визуальной демонстрации: http://localhost:5173/?preview=1 — три примера из справочных источников, не записи рабочего каталога. Поиск, фильтры, выбор карточки и переключение темы работают. Без `.env.local` работает карта с пустым каталогом. Тайлы требуют интернет. Не подключайте служебные ключи в переменные `VITE_*`: они попадают в браузер.
 
 ## Локальная база
 
@@ -64,6 +64,6 @@ docs/                         архитектура и подключение �
 
 ## Облако и совместная работа
 
-См. [инструкцию подключения](docs/SETUP.md) и [архитектуру](docs/ARCHITECTURE.md). Эта заготовка не создаёт платных ресурсов. Созданы [GitHub-репозиторий](https://github.com/MaxFolmer/china_replicas) и [проект Supabase](https://supabase.com/dashboard/project/wxdpvxygeyieyurdqbup). Для подключения базы нужны вход в аккаунт, применение миграций и публичный ключ. Хостинг ещё не подключён.
+См. [инструкцию подключения](docs/SETUP.md) и [архитектуру](docs/ARCHITECTURE.md). Эта заготовка не создаёт платных ресурсов. Созданы [GitHub-репозиторий](https://github.com/MaxFolmer/china_replicas) и [проект Supabase](https://supabase.com/dashboard/project/wxdpvxygeyieyurdqbup). Миграция `20261102000100_initial_schema` и категории применены к облачной базе через SQL Editor, версия зарегистрирована в истории миграций. Локальное приложение подключено через игнорируемый `.env.local`. Для другого компьютера нужно создать свой `.env.local` с Project URL и publishable key. Хостинг ещё не подключён.
 
 Документация: [Vite](https://vite.dev/guide/), [локальная разработка Supabase](https://supabase.com/docs/guides/local-development/cli-workflows), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security).
