@@ -10,12 +10,17 @@ test('migrations, coordinate constraints and access boundaries', async t => {
   await db.exec(`
     create role anon nologin; create role authenticated nologin;
     create schema auth;
+    create schema storage;
     create table auth.users (id uuid primary key);
+    create table storage.buckets (id text primary key, name text not null, public boolean not null default false, file_size_limit bigint, allowed_mime_types text[]);
+    create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text not null references storage.buckets(id), name text not null);
+    alter table storage.objects enable row level security;
     create function auth.uid() returns uuid language sql stable as $$
       select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
     $$;
-    grant usage on schema auth to anon, authenticated;
+    grant usage on schema auth, storage to anon, authenticated;
     grant execute on function auth.uid() to anon, authenticated;
+    grant select, insert, update, delete on storage.objects to authenticated;
   `);
   const migrations = new URL('../supabase/migrations/', import.meta.url);
   for (const file of (await readdir(migrations)).filter(f => f.endsWith('.sql')).sort()) {
@@ -74,6 +79,12 @@ test('migrations, coordinate constraints and access boundaries', async t => {
     });
     await assert.rejects(as('authenticated', alice, () => db.query('insert into public.favorites(user_id,attraction_id) values ($1,$2)', [bob,draft])), /row-level security/);
     await assert.rejects(as('authenticated', alice, () => db.query('insert into public.favorites(user_id,attraction_id) values ($1,$2)', [alice,draft])), /row-level security/);
+  });
+  await t.test('only editors can write attraction image objects', async () => {
+    await assert.rejects(as('authenticated', alice, () => db.query("insert into storage.objects(bucket_id,name) values ('attraction-images','blocked.jpg')")), /row-level security/);
+    await as('authenticated', admin, async () => {
+      await db.query("insert into storage.objects(bucket_id,name) values ('attraction-images','allowed.jpg')");
+    });
   });
   await t.test('editors can read private catalog data but cannot write tables directly', async () => {
     await as('authenticated', admin, async () => {

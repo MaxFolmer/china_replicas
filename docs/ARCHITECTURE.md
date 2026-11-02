@@ -9,7 +9,7 @@
 - attractions: карточка копии, оригинал, координаты WGS84, существование, доступность и публикация.
 - provinces → cities → attractions, categories → attractions: география и классификация.
 - sources: ссылки на источники и исходные координаты WGS84/GCJ02/BD09/unknown.
-- attraction_images: ссылки, тип replica/original, источник, лицензия и атрибуция. Загрузка файлов в Storage пока не реализована.
+- attraction_images: ссылки, тип replica/original, источник, лицензия и атрибуция. Файлы хранятся в публичном bucket `attraction-images`; загружать и удалять их могут только редакторы.
 - verification_logs: история проверок, доказательства и редакционные заметки. Доступна редакторам.
 - import_batches → import_items: исходный JSON и решение редактора. Приватны.
 - favorites: избранное владельца; UI появится позднее.

@@ -61,12 +61,25 @@ export async function addCity(provinceName: string, cityName: string) {
   if(error) throw error;
   return z.uuid().parse(data);
 }
+const uploadMimeTypes = new Map([['image/jpeg','jpg'],['image/png','png'],['image/webp','webp'],['image/avif','avif']]);
+export async function uploadAttractionImage(attractionId: string, file: File) {
+  if(!z.uuid().safeParse(attractionId).success) throw new Error('Сначала сохраните объект, затем добавьте фотографию.');
+  const extension=uploadMimeTypes.get(file.type);
+  if(!extension) throw new Error('Поддерживаются JPEG, PNG, WebP и AVIF.');
+  if(file.size===0 || file.size>10*1024*1024) throw new Error('Размер фотографии должен быть от 1 байта до 10 МБ.');
+  const path=`${attractionId}/${crypto.randomUUID()}.${extension}`;
+  const bucket=client().storage.from('attraction-images');
+  const {error}=await bucket.upload(path,file,{cacheControl:'31536000',contentType:file.type,upsert:false});
+  if(error) throw error;
+  return bucket.getPublicUrl(path).data.publicUrl;
+}
 export function friendlyError(error: unknown): string {
   if(error instanceof z.ZodError) return error.issues.map(i => i.message).join('. ');
   const e=error as {message?:string;code?:string};
-  const messages:Record<string,string>={editor_required:'Требуются права редактора.', invalid_city:'Проверьте названия провинции и города.', concurrent_edit:'Объект уже изменён другим редактором. Откройте его заново перед сохранением.', review_required_for_status_change:'При изменении статусов добавьте запись проверки и подтверждающую ссылку.', review_evidence_required:'Для проверки нужна хотя бы одна ссылка http(s).', publication_requirements:'Для публикации нужны город, категория, источник и проверка существования объекта.', place_not_found:'Объект больше не существует.'};
+  const messages:Record<string,string>={editor_required:'Требуются права редактора.', invalid_city:'Проверьте названия провинции и города.', concurrent_edit:'Объект уже изменён другим редактором. Откройте его заново перед сохранением.', review_required_for_status_change:'При изменении статусов добавьте запись проверки и подтверждающую ссылку.', review_evidence_required:'Для проверки нужна хотя бы одна ссылка http(s).', publication_requirements:'Для публикации нужны город, категория, источник и проверка существования объекта.', place_not_found:'Объект больше не существует.', 'Сначала сохраните объект, затем добавьте фотографию.':'Сначала сохраните объект, затем добавьте фотографию.', 'Поддерживаются JPEG, PNG, WebP и AVIF.':'Поддерживаются JPEG, PNG, WebP и AVIF.', 'Размер фотографии должен быть от 1 байта до 10 МБ.':'Размер фотографии должен быть от 1 байта до 10 МБ.'};
   if(e.code==='23505') return 'Такой slug, город или ссылка уже существуют.';
   if(e.code==='42501') return 'Недостаточно прав для этого действия.';
   if(e.code==='23514') return 'Проверьте координаты и условия публикации.';
+  if(e.message?.includes('Bucket not found')) return 'Хранилище фотографий ещё не подключено. Примените миграцию Storage.';
   return messages[e.message || ''] || 'Не удалось выполнить действие. Проверьте подключение и повторите попытку.';
 }
