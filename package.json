@@ -20,7 +20,8 @@
     "db:types": "node scripts/generate-db-types.mjs",
     "db:link": "supabase link --project-ref wxdpvxygeyieyurdqbup",
     "db:push:preview": "supabase db push --dry-run",
-    "db:push": "supabase db push"
+    "db:push": "supabase db push",
+    "account:password": "node --env-file=.env.local scripts/set-editor-password.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

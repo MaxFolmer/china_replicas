@@ -19,7 +19,7 @@ function Login() {
         if(error)setError(error.status===429?'Слишком много попыток. Подождите немного.':'Не удалось войти. Проверьте email и пароль или используйте вход по ссылке.');
       }else{
         const {error}=await supabase!.auth.signInWithOtp({email:email.trim(),options:{emailRedirectTo:`${location.origin}/admin`,shouldCreateUser:false}});
-        if(error)setError(error.status===429?'Слишком много запросов. Повторите позже.':'Не удалось отправить ссылку. Проверьте email и повторите попытку.');else setSent(true);
+        if(error)setError(error.code==='over_email_send_rate_limit'?'Лимит писем для входа исчерпан. Повторите позже. Если пароль уже установлен, выберите «По паролю».':error.status===429?'Слишком много попыток входа. Подождите несколько минут.':'Не удалось отправить ссылку. Проверьте email и повторите попытку.');else setSent(true);
       }
     }catch{setError('Не удалось подключиться. Повторите попытку.');}
     finally{setBusy(false);}
