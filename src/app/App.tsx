@@ -35,10 +35,10 @@ export function App() {
   const groups = filtered.reduce<Record<string, Place[]>>((result, place) => { (result[place.city] ||= []).push(place); return result; }, {});
   function changeCategory(slug: string) { setCategory(slug); setSelected(null); }
   function toggleDemo() { setDemo(!demo); setSelected(null); setSearch(''); setCategory('all'); }
-  return <main className={`atlas ${light ? 'light' : ''}`}>
+  return <main className={`atlas ${light ? 'light' : ''} ${selected?'place-selected':''}`}>
     <section className="map-canvas" aria-label="Карта Китая"><PlacesMap places={filtered} selected={selected} onSelect={setSelected} light={light} /></section>
     <header className="toolbar glass" aria-label="Поиск и фильтры">
-      <button className="menu-button" title="Список мест" aria-label="Список мест" aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}><Icon name="layers" /></button>
+      <button className="menu-button" title={listOpen?'Скрыть список':'Показать список'} aria-label={listOpen?'Скрыть список мест':'Показать список мест'} aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}><Icon name="layers" /></button>
       <nav aria-label="Тип места">{categories.map(c => <button key={c.slug} title={c.name} aria-pressed={category === c.slug} onClick={() => changeCategory(c.slug)} className={category === c.slug ? 'active' : ''}><Icon name={c.icon} /><span>{c.name}</span></button>)}</nav>
       <span className="toolbar-divider" />
       <label className="search"><Icon name="search" size={17} /><input aria-label="Поиск мест" placeholder="Найти место…" value={search} onChange={e => { setSearch(e.target.value); setSelected(null); }} />{search && <button aria-label="Очистить поиск" onClick={() => setSearch('')}><Icon name="close" size={14} /></button>}</label>
