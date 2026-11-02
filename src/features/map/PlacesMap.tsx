@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { CircleMarker, MapContainer, TileLayer, useMap } from 'react-leaflet';
+import { AttributionControl, CircleMarker, MapContainer, TileLayer, useMap } from 'react-leaflet';
 import type { Place } from '../attractions/api';
 import { Icon } from '../../shared/lib/Icon';
 export const categoryColors: Record<string, string> = {
@@ -17,7 +17,8 @@ function MapActions({ selected }: { selected: Place | null }) {
 }
 export function PlacesMap({ places, selected, onSelect, light }: { places: Place[]; selected: Place | null; onSelect: (p: Place) => void; light: boolean }) {
   const style = light ? 'light' : 'dark';
-  return <MapContainer center={[31, 110]} zoom={5} minZoom={3} className="map" zoomControl={false} scrollWheelZoom>
+  return <MapContainer center={[31, 110]} zoom={5} minZoom={3} className="map" zoomControl={false} attributionControl={false} scrollWheelZoom>
+    <AttributionControl prefix='<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>' />
     <TileLayer key={style} url={import.meta.env.VITE_MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'}
       attribution={import.meta.env.VITE_MAP_ATTRIBUTION || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'} />
     {places.map(place => <CircleMarker key={place.id} center={[place.latitude, place.longitude]}
