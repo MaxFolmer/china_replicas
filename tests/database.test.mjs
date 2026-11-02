@@ -126,6 +126,13 @@ test('migrations, coordinate constraints and access boundaries', async t => {
       assert.equal((await db.query('select last_verified_at from public.attractions where id=$1',[result.id])).rows[0].last_verified_at,null);
     });
   });
+  await t.test('image rights metadata may be completed later', async () => {
+    await as('authenticated', admin, async () => {
+      const result=await save({...newDraft,slug:'photo-draft',name:'Photo draft'},[],[{image_url:'https://example.org/photo.jpg',image_type:'replica',source_url:'',license:'',attribution:'',sort_order:0}]);
+      const image=(await db.query('select source_url,license,attribution from public.attraction_images where attraction_id=$1',[result.id])).rows[0];
+      assert.deepEqual(image,{source_url:'',license:'',attribution:''});
+    });
+  });
   await t.test('publication requires source, geography and an evidenced review', async () => {
     await assert.rejects(as('authenticated', admin, () => save({...newDraft,publication_status:'published'})), /publication_requirements/);
     await assert.rejects(as('authenticated', admin, () => save({...newDraft,existence_status:'exists'})), /review_required_for_status_change/);

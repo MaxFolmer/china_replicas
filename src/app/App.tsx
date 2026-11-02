@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { listAttractions, type Place } from '../features/attractions/api';
+import { listAttractions, type Place, type PlacePhoto } from '../features/attractions/api';
 import { demoPlaces } from '../features/attractions/demo';
 import { PlacesMap, categoryColors } from '../features/map/PlacesMap';
 import { configurationError } from '../shared/lib/supabase';
@@ -11,6 +11,19 @@ const categories: { slug: string; name: string; icon: IconName }[] = [
   { slug: 'theme-park', name: 'Парки', icon: 'park' },
 ];
 const placeLabel = (count: number) => ({ one: 'место', few: 'места', many: 'мест', other: 'мест', zero: 'мест', two: 'места' }[new Intl.PluralRules('ru').select(count)]);
+function PhotoGallery({place}:{place:Place}) {
+  const fallback:PlacePhoto[] = place.image?[{url:place.image,type:'replica',credit:place.imageCredit,source:place.imageSource}]:[];
+  const photos=place.images?.length?place.images:fallback;
+  const [index,setIndex]=useState(0);
+  if(!photos.length)return null;
+  const photo=photos[index];
+  const move=(step:number)=>setIndex(current=>(current+step+photos.length)%photos.length);
+  return <div className="detail-gallery">
+    <img className="detail-photo" src={photo.url} alt={`${place.name} — фото ${index+1}`} />
+    {photos.length>1&&<><button className="gallery-arrow previous" aria-label="Предыдущее фото" onClick={()=>move(-1)}><Icon name="chevron" size={21}/></button><button className="gallery-arrow next" aria-label="Следующее фото" onClick={()=>move(1)}><Icon name="chevron" size={21}/></button><span className="gallery-count" aria-live="polite">{index+1} / {photos.length}</span></>}
+    {(photo.credit||photo.source)&&(photo.source?<a className="gallery-credit" href={photo.source} target="_blank" rel="noreferrer">{photo.credit||'Источник фотографии'}</a>:<span className="gallery-credit">{photo.credit}</span>)}
+  </div>;
+}
 export function App() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -61,13 +74,12 @@ export function App() {
       {selected ? <>
         <div className="detail-top"><span className="eyebrow">{selected.demo ? 'ПРИМЕР МЕСТА' : 'МЕСТО НА КАРТЕ'}</span><button aria-label="Закрыть карточку" onClick={() => setSelected(null)}><Icon name="close" size={18} /></button></div>
         <div className="detail-scroll">
-          {selected.image && <img className="detail-photo" src={selected.image} alt={selected.name} />}
+          <PhotoGallery key={selected.id} place={selected}/>
           <div className="detail-content"><span className="detail-city"><Icon name="pin" size={14} />{selected.city}</span><h2>{selected.name}</h2><p className="detail-description">{selected.description || 'Описание пока не добавлено.'}</p>
           {selected.original && <div className="original-block"><span>ВДОХНОВЛЕНО</span><strong>{selected.original}</strong></div>}
           <div className="coordinates"><span>Координаты · WGS84</span><code>{selected.latitude.toFixed(5)}, {selected.longitude.toFixed(5)}</code></div>
           {selected.demo && <p className="demo-note">Демонстрационная карточка. Существование и доступность объекта требуют отдельной проверки.</p>}
           {selected.source && <a className="source-link" href={selected.source} target="_blank" rel="noreferrer">Источник информации <Icon name="arrow" size={16} /></a>}
-          {selected.imageSource && <a className="photo-credit" href={selected.imageSource} target="_blank" rel="noreferrer">{selected.imageCredit || 'Фото и условия использования · Wikimedia Commons'}</a>}
           </div>
         </div>
       </> : <div className="detail-welcome"><div className="welcome-icon"><Icon name="compass" size={24} /></div><h2>История<br />каждого места</h2><p>Выберите место на карте или в списке, чтобы увидеть фотографии, описание и архитектурный оригинал.</p><div className="welcome-divider" /><span className="eyebrow">НА КАРТЕ</span><ul><li><i style={{ background: categoryColors['landmark-replica'] }} />Копии достопримечательностей</li><li><i style={{ background: categoryColors['themed-town'] }} />Тематические города</li><li><i style={{ background: categoryColors['theme-park'] }} />Парки миниатюр</li></ul><span className="welcome-bottom">Атлас архитектурных копий Китая</span></div>}

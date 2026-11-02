@@ -20,8 +20,8 @@ export const sourceSchema = z.object({
   coordinate_system: z.enum(['WGS84','GCJ02','BD09','unknown']).nullable(), checked_at: z.string().nullable(),
 }).refine(v => (v.source_latitude === null) === (v.source_longitude === null), 'Укажите обе исходные координаты');
 export type Source = z.infer<typeof sourceSchema>;
-export const imageSchema = z.object({image_url:httpUrl, image_type:z.enum(['replica','original']), source_url:httpUrl,
-  license:z.string().trim().min(1,'Укажите лицензию'), attribution:z.string().trim().min(1,'Укажите автора'), sort_order:z.number().int()});
+export const imageSchema = z.object({image_url:httpUrl, image_type:z.enum(['replica','original']), source_url:z.union([httpUrl,z.literal('')]),
+  license:z.string().trim(), attribution:z.string().trim(), sort_order:z.number().int()});
 export type PlaceImage = z.infer<typeof imageSchema>;
 export type Review = { evidence_urls: string[]; notes: string };
 export type Lookup = { id: string; name: string; province_id?: string };
