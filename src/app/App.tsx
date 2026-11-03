@@ -11,6 +11,13 @@ const categories: { slug: string; name: string; icon: IconName }[] = [
   { slug: 'theme-park', name: 'Парки', icon: 'park' },
 ];
 const placeLabel = (count: number) => ({ one: 'место', few: 'места', many: 'мест', other: 'мест', zero: 'мест', two: 'места' }[new Intl.PluralRules('ru').select(count)]);
+const routeSlug = () => {
+  const match = location.pathname.match(/^\/places\/([^/]+)\/?$/);
+  return match ? decodeURIComponent(match[1]) : null;
+};
+const placePath = (place: Place | null, preview = false) => place
+  ? `/places/${encodeURIComponent(place.slug)}${place.demo ? '?preview=1' : ''}`
+  : preview ? '/?preview=1' : '/';
 function PhotoGallery({place}:{place:Place}) {
   const fallback:PlacePhoto[] = place.image?[{url:place.image,type:'replica',credit:place.imageCredit,source:place.imageSource}]:[];
   const photos=place.images?.length?place.images:fallback;
@@ -45,16 +52,56 @@ export function App() {
     (category === 'all' || p.category === category) &&
     `${p.name} ${p.original || ''} ${p.city}`.toLocaleLowerCase().includes(search.toLocaleLowerCase().trim())
   ), [demo, places, category, search]);
+  useEffect(() => {
+    const syncRoute = () => {
+      const preview = new URLSearchParams(location.search).get('preview') === '1';
+      const slug = routeSlug();
+      setDemo(preview);
+      setSelected(slug ? (preview ? demoPlaces : places).find(place => place.slug === slug) || null : null);
+    };
+    syncRoute();
+    addEventListener('popstate', syncRoute);
+    return () => removeEventListener('popstate', syncRoute);
+  }, [places]);
+  useEffect(() => {
+    const title = selected ? `${selected.name} — China Replicas` : 'China Replicas — атлас архитектурных копий Китая';
+    const description = selected
+      ? (selected.description || `${selected.name}, ${selected.city} — место в атласе архитектурных копий Китая.`).slice(0, 160)
+      : 'Интерактивный атлас архитектурных копий, тематических городов и парков Китая.';
+    document.title = title;
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'description';
+      document.head.append(meta);
+    }
+    meta.content = description;
+    let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.append(canonical);
+    }
+    canonical.href = `${location.origin}${selected ? `/places/${encodeURIComponent(selected.slug)}` : '/'}`;
+  }, [selected]);
   const groups = filtered.reduce<Record<string, Place[]>>((result, place) => { (result[place.city] ||= []).push(place); return result; }, {});
-  function changeCategory(slug: string) { setCategory(slug); setSelected(null); }
-  function toggleDemo() { setDemo(!demo); setSelected(null); setSearch(''); setCategory('all'); }
+  function selectPlace(place: Place | null, replace = false) {
+    setSelected(place);
+    history[replace ? 'replaceState' : 'pushState']({}, '', placePath(place, demo));
+  }
+  function changeCategory(slug: string) { setCategory(slug); selectPlace(null); }
+  function toggleDemo() {
+    const nextDemo = !demo;
+    setDemo(nextDemo); setSelected(null); setSearch(''); setCategory('all');
+    history.pushState({}, '', nextDemo ? '/?preview=1' : '/');
+  }
   return <main className={`atlas ${light ? 'light' : ''} ${selected?'place-selected':''}`}>
-    <section className="map-canvas" aria-label="Карта Китая"><PlacesMap places={filtered} selected={selected} onSelect={setSelected} light={light} /></section>
+    <section className="map-canvas" aria-label="Карта Китая"><PlacesMap places={filtered} selected={selected} onSelect={selectPlace} light={light} /></section>
     <header className="toolbar glass" aria-label="Поиск и фильтры">
       <button className="menu-button" title={listOpen?'Скрыть список':'Показать список'} aria-label={listOpen?'Скрыть список мест':'Показать список мест'} aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}><Icon name="layers" /></button>
       <nav aria-label="Тип места">{categories.map(c => <button key={c.slug} title={c.name} aria-pressed={category === c.slug} onClick={() => changeCategory(c.slug)} className={category === c.slug ? 'active' : ''}><Icon name={c.icon} /><span>{c.name}</span></button>)}</nav>
       <span className="toolbar-divider" />
-      <label className="search"><Icon name="search" size={17} /><input aria-label="Поиск мест" placeholder="Найти место…" value={search} onChange={e => { setSearch(e.target.value); setSelected(null); }} />{search && <button aria-label="Очистить поиск" onClick={() => setSearch('')}><Icon name="close" size={14} /></button>}</label>
+      <label className="search"><Icon name="search" size={17} /><input aria-label="Поиск мест" placeholder="Найти место…" value={search} onChange={e => { setSearch(e.target.value); if (selected) selectPlace(null, true); }} />{search && <button aria-label="Очистить поиск" onClick={() => setSearch('')}><Icon name="close" size={14} /></button>}</label>
       <button className="theme-button" title={light ? 'Тёмная карта' : 'Светлая карта'} aria-label={light ? 'Тёмная карта' : 'Светлая карта'} onClick={() => setLight(!light)}><Icon name={light ? 'moon' : 'sun'} /></button>
     </header>
     {listOpen && <aside className="places-panel glass" aria-label="Каталог мест">
@@ -63,7 +110,7 @@ export function App() {
       <div className="places-scroll" aria-live="polite">
         {!demo && (configurationError || error) && <p role="alert" className="notice">{configurationError || error}</p>}
         {!demo && loading ? <p className="empty-text">Загружаем места…</p> : filtered.length === 0 ? <div className="empty-state"><Icon name="pin" size={30} /><h2>{search || category !== 'all' ? 'Ничего не найдено' : 'Карта начинается с первого места'}</h2><p>{search || category !== 'all' ? 'Попробуйте другой запрос или категорию.' : 'Здесь появятся объекты из вашего архива после проверки.'}</p>{!demo && !search && <button className="outline-button" onClick={toggleDemo}>Посмотреть пример <Icon name="arrow" size={16} /></button>}</div>
-          : Object.entries(groups).map(([city, group]) => <section className="city-group" key={city}><h2><Icon name="pin" size={15} />{city}<span>{group!.length}</span></h2>{group!.map(place => <button key={place.id} className={`place-card ${selected?.id === place.id ? 'selected' : ''}`} onClick={() => setSelected(place)} aria-pressed={selected?.id === place.id}>
+          : Object.entries(groups).map(([city, group]) => <section className="city-group" key={city}><h2><Icon name="pin" size={15} />{city}<span>{group!.length}</span></h2>{group!.map(place => <button key={place.id} className={`place-card ${selected?.id === place.id ? 'selected' : ''}`} onClick={() => selectPlace(place)} aria-pressed={selected?.id === place.id}>
             <div className="card-copy"><span className="card-category"><i style={{ background: categoryColors[place.category] || categoryColors.other }} />{categories.find(c => c.slug === place.category)?.name || 'Архитектура'}</span><h3>{place.name}</h3><p>{place.description || place.original || 'Открыть место'}</p></div>
             {place.image ? <img src={place.image} alt={place.name} loading="lazy" /> : <div className="photo-placeholder"><Icon name="landmark" size={30} /></div>}
           </button>)}</section>)}
@@ -72,7 +119,7 @@ export function App() {
     </aside>}
     <aside className={`details-panel glass ${selected ? 'has-selection' : ''}`} aria-label="Информация о месте">
       {selected ? <>
-        <div className="detail-top"><span className="eyebrow">{selected.demo ? 'ПРИМЕР МЕСТА' : 'МЕСТО НА КАРТЕ'}</span><button aria-label="Закрыть карточку" onClick={() => setSelected(null)}><Icon name="close" size={18} /></button></div>
+        <div className="detail-top"><span className="eyebrow">{selected.demo ? 'ПРИМЕР МЕСТА' : 'МЕСТО НА КАРТЕ'}</span><button aria-label="Закрыть карточку" onClick={() => selectPlace(null)}><Icon name="close" size={18} /></button></div>
         <div className="detail-scroll">
           <PhotoGallery key={selected.id} place={selected}/>
           <div className="detail-content"><span className="detail-city"><Icon name="pin" size={14} />{selected.city}</span><h2>{selected.name}</h2><p className="detail-description">{selected.description || 'Описание пока не добавлено.'}</p>
