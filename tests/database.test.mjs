@@ -108,6 +108,9 @@ test('migrations, coordinate constraints and access boundaries', async t => {
   async function addCity(province, city) {
     return (await db.query('select public.admin_upsert_city($1,$2) as id', [province, city])).rows[0].id;
   }
+  async function createImport(sourceName,filename,items) {
+    return (await db.query('select public.admin_create_import_batch($1,$2,$3::jsonb) as id',[sourceName,filename,JSON.stringify(items)])).rows[0].id;
+  }
   const newDraft = {slug:'rpc-draft',name:'RPC draft',existence_status:'unknown',visitor_status:'unknown',publication_status:'draft'};
   const source = {source_type:'official',source_url:'https://example.org/evidence'};
   await t.test('editor role RPC cannot be used for privilege escalation', async () => {
@@ -125,6 +128,15 @@ test('migrations, coordinate constraints and access boundaries', async t => {
       assert.equal((await db.query('select source_url from public.sources where attraction_id=$1',[result.id])).rows[0].source_url, source.source_url);
       assert.equal((await db.query('select last_verified_at from public.attractions where id=$1',[result.id])).rows[0].last_verified_at,null);
     });
+  });
+  await t.test('import queue preserves raw rows and rejects regular users', async () => {
+    await assert.rejects(as('authenticated',alice,()=>createImport('manual','places.csv',[{name:'Blocked'}])),/editor_required/);
+    await as('authenticated',admin,async()=>{
+      const id=await createImport('google','places.csv',[{name:'Raw place',latitude:'30.1',custom:{untouched:true}},{name:'Second'}]);
+      const rows=(await db.query('select row_number,raw_data from public.import_items where batch_id=$1 order by row_number',[id])).rows;
+      assert.equal(rows.length,2);assert.equal(rows[0].row_number,1);assert.deepEqual(rows[0].raw_data.custom,{untouched:true});
+    });
+    await assert.rejects(as('authenticated',admin,()=>createImport('invalid','bad.csv',[{}])),/invalid_import/);
   });
   await t.test('image rights metadata may be completed later', async () => {
     await as('authenticated', admin, async () => {
