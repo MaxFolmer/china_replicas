@@ -111,6 +111,9 @@ test('migrations, coordinate constraints and access boundaries', async t => {
   async function createImport(sourceName,filename,items) {
     return (await db.query('select public.admin_create_import_batch($1,$2,$3::jsonb) as id',[sourceName,filename,JSON.stringify(items)])).rows[0].id;
   }
+  async function reviewImport(itemId,action,attractionId=null) {
+    return (await db.query('select public.admin_review_import_item($1,$2,$3,$4) as result',[itemId,action,attractionId,''])).rows[0].result;
+  }
   const newDraft = {slug:'rpc-draft',name:'RPC draft',existence_status:'unknown',visitor_status:'unknown',publication_status:'draft'};
   const source = {source_type:'official',source_url:'https://example.org/evidence'};
   await t.test('editor role RPC cannot be used for privilege escalation', async () => {
@@ -137,6 +140,26 @@ test('migrations, coordinate constraints and access boundaries', async t => {
       assert.equal(rows.length,2);assert.equal(rows[0].row_number,1);assert.deepEqual(rows[0].raw_data.custom,{untouched:true});
     });
     await assert.rejects(as('authenticated',admin,()=>createImport('invalid','bad.csv',[{}])),/invalid_import/);
+  });
+  await t.test('import review creates safe drafts, links duplicates and rejects rows', async () => {
+    const batch=(await db.query("insert into public.import_batches(source,filename,created_by) values ('google','review.csv',$1) returning id",[admin])).rows[0].id;
+    const setupItems=[{_import:{name:'Imported draft',latitude:30.1,longitude:120.2,source_url:'https://maps.example/one'}},{_import:{name:'Duplicate'}},{_import:{name:'Reject me'}}];
+    for(let i=0;i<setupItems.length;i++)await db.query('insert into public.import_items(batch_id,row_number,raw_data) values ($1,$2,$3)',[batch,i+1,setupItems[i]]);
+    const rows=(await db.query('select id from public.import_items where batch_id=$1 order by row_number',[batch])).rows;
+    await assert.rejects(as('authenticated',alice,()=>reviewImport(rows[0].id,'create')),/editor_required/);
+    let createdId;
+    await as('authenticated',admin,async()=>{
+      const created=await reviewImport(rows[0].id,'create');createdId=created.attraction_id;
+      const draft=(await db.query('select latitude,longitude,publication_status from public.attractions where id=$1',[createdId])).rows[0];
+      const sourceRow=(await db.query('select source_latitude,source_longitude,coordinate_system from public.sources where attraction_id=$1',[createdId])).rows[0];
+      assert.deepEqual(draft,{latitude:null,longitude:null,publication_status:'draft'});
+      assert.deepEqual(sourceRow,{source_latitude:30.1,source_longitude:120.2,coordinate_system:'unknown'});
+      await reviewImport(rows[1].id,'link',createdId);
+      await reviewImport(rows[2].id,'reject');
+      assert.equal((await db.query('select review_status from public.import_items where id=$1',[rows[1].id])).rows[0].review_status,'approved');
+      assert.equal((await db.query('select review_status from public.import_items where id=$1',[rows[2].id])).rows[0].review_status,'rejected');
+      await assert.rejects(reviewImport(rows[0].id,'create'),/import_item_reviewed/);
+    });
   });
   await t.test('image rights metadata may be completed later', async () => {
     await as('authenticated', admin, async () => {
