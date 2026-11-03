@@ -39,6 +39,8 @@ export function App() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [selected, setSelected] = useState<Place | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [shareStatus, setShareStatus] = useState('');
   const [light, setLight] = useState(false);
   const [listOpen, setListOpen] = useState(true);
   useEffect(() => {
@@ -52,17 +54,21 @@ export function App() {
     (category === 'all' || p.category === category) &&
     `${p.name} ${p.original || ''} ${p.city}`.toLocaleLowerCase().includes(search.toLocaleLowerCase().trim())
   ), [demo, places, category, search]);
+  const allPlaces = demo ? demoPlaces : places;
   useEffect(() => {
     const syncRoute = () => {
       const preview = new URLSearchParams(location.search).get('preview') === '1';
       const slug = routeSlug();
+      const match = slug ? (preview ? demoPlaces : places).find(place => place.slug === slug) || null : null;
       setDemo(preview);
-      setSelected(slug ? (preview ? demoPlaces : places).find(place => place.slug === slug) || null : null);
+      setSelected(match);
+      setNotFound(Boolean(slug && !match && (preview || !loading)));
+      if (slug && matchMedia('(max-width: 700px)').matches) setListOpen(false);
     };
     syncRoute();
     addEventListener('popstate', syncRoute);
     return () => removeEventListener('popstate', syncRoute);
-  }, [places]);
+  }, [places, loading]);
   useEffect(() => {
     const title = selected ? `${selected.name} — China Replicas` : 'China Replicas — атлас архитектурных копий Китая';
     const description = selected
@@ -85,9 +91,25 @@ export function App() {
     canonical.href = `${location.origin}${selected ? `/places/${encodeURIComponent(selected.slug)}` : '/'}`;
   }, [selected]);
   const groups = filtered.reduce<Record<string, Place[]>>((result, place) => { (result[place.city] ||= []).push(place); return result; }, {});
+  const related = selected ? allPlaces.filter(place => place.id !== selected.id && (place.city === selected.city || place.category === selected.category)).slice(0, 3) : [];
+  const selectedIndex = selected ? allPlaces.findIndex(place => place.id === selected.id) : -1;
+  const nextPlace = selectedIndex >= 0 && allPlaces.length > 1 ? allPlaces[(selectedIndex + 1) % allPlaces.length] : null;
   function selectPlace(place: Place | null, replace = false) {
     setSelected(place);
+    setNotFound(false);
+    setShareStatus('');
+    if (place && matchMedia('(max-width: 700px)').matches) setListOpen(false);
     history[replace ? 'replaceState' : 'pushState']({}, '', placePath(place, demo));
+  }
+  async function sharePlace() {
+    if (!selected) return;
+    const url = `${location.origin}/places/${encodeURIComponent(selected.slug)}`;
+    try {
+      if (navigator.share) await navigator.share({ title: selected.name, text: selected.description, url });
+      else { await navigator.clipboard.writeText(url); setShareStatus('Ссылка скопирована'); }
+    } catch (error) {
+      if ((error as DOMException).name !== 'AbortError') setShareStatus('Не удалось скопировать ссылку');
+    }
   }
   function changeCategory(slug: string) { setCategory(slug); selectPlace(null); }
   function toggleDemo() {
@@ -95,7 +117,7 @@ export function App() {
     setDemo(nextDemo); setSelected(null); setSearch(''); setCategory('all');
     history.pushState({}, '', nextDemo ? '/?preview=1' : '/');
   }
-  return <main className={`atlas ${light ? 'light' : ''} ${selected?'place-selected':''}`}>
+  return <main className={`atlas ${light ? 'light' : ''} ${selected||notFound?'place-selected':''}`}>
     <section className="map-canvas" aria-label="Карта Китая"><PlacesMap places={filtered} selected={selected} onSelect={selectPlace} light={light} /></section>
     <header className="toolbar glass" aria-label="Поиск и фильтры">
       <button className="menu-button" title={listOpen?'Скрыть список':'Показать список'} aria-label={listOpen?'Скрыть список мест':'Показать список мест'} aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}><Icon name="layers" /></button>
@@ -117,19 +139,22 @@ export function App() {
       </div>
       <div className="catalog-footer"><span>{demo ? 'Примеры · актуальность не проверена' : 'Исследуем архитектуру Китая'}</span><a href="/admin" className="editor-entry">Редакторам ↗</a></div>
     </aside>}
-    <aside className={`details-panel glass ${selected ? 'has-selection' : ''}`} aria-label="Информация о месте">
+    <aside className={`details-panel glass ${selected || notFound ? 'has-selection' : ''}`} aria-label="Информация о месте">
       {selected ? <>
-        <div className="detail-top"><span className="eyebrow">{selected.demo ? 'ПРИМЕР МЕСТА' : 'МЕСТО НА КАРТЕ'}</span><button aria-label="Закрыть карточку" onClick={() => selectPlace(null)}><Icon name="close" size={18} /></button></div>
+        <div className="detail-top"><span className="eyebrow">{selected.demo ? 'ПРИМЕР МЕСТА' : 'МЕСТО НА КАРТЕ'}</span><div className="detail-top-actions"><button aria-label="Поделиться карточкой" title="Поделиться" onClick={sharePlace}><Icon name="share" size={18} /></button><button aria-label="Закрыть карточку" onClick={() => selectPlace(null)}><Icon name="close" size={18} /></button></div></div>
         <div className="detail-scroll">
           <PhotoGallery key={selected.id} place={selected}/>
           <div className="detail-content"><span className="detail-city"><Icon name="pin" size={14} />{selected.city}</span><h2>{selected.name}</h2><p className="detail-description">{selected.description || 'Описание пока не добавлено.'}</p>
+          {shareStatus && <p className="share-status" role="status">{shareStatus}</p>}
           {selected.original && <div className="original-block"><span>ВДОХНОВЛЕНО</span><strong>{selected.original}</strong></div>}
           <div className="coordinates"><span>Координаты · WGS84</span><code>{selected.latitude.toFixed(5)}, {selected.longitude.toFixed(5)}</code></div>
           {selected.demo && <p className="demo-note">Демонстрационная карточка. Существование и доступность объекта требуют отдельной проверки.</p>}
           {selected.source && <a className="source-link" href={selected.source} target="_blank" rel="noreferrer">Источник информации <Icon name="arrow" size={16} /></a>}
+          {related.length > 0 && <section className="related-places"><span className="eyebrow">ПОХОЖИЕ МЕСТА</span>{related.map(place=><button key={place.id} onClick={()=>selectPlace(place)}><span>{place.city}</span><strong>{place.name}</strong><Icon name="chevron" size={15}/></button>)}</section>}
+          {nextPlace && <button className="next-place" onClick={()=>selectPlace(nextPlace)}><span>Следующее место</span><strong>{nextPlace.name}</strong><Icon name="arrow" size={17}/></button>}
           </div>
         </div>
-      </> : <div className="detail-welcome"><div className="welcome-icon"><Icon name="compass" size={24} /></div><h2>История<br />каждого места</h2><p>Выберите место на карте или в списке, чтобы увидеть фотографии, описание и архитектурный оригинал.</p><div className="welcome-divider" /><span className="eyebrow">НА КАРТЕ</span><ul><li><i style={{ background: categoryColors['landmark-replica'] }} />Копии достопримечательностей</li><li><i style={{ background: categoryColors['themed-town'] }} />Тематические города</li><li><i style={{ background: categoryColors['theme-park'] }} />Парки миниатюр</li></ul><span className="welcome-bottom">Атлас архитектурных копий Китая</span></div>}
+      </> : notFound ? <div className="not-found"><button aria-label="Закрыть" onClick={()=>selectPlace(null)}><Icon name="close" size={18}/></button><span>404</span><Icon name="pin" size={30}/><h2>Место не найдено</h2><p>Возможно, объект ещё не опубликован или адрес изменился.</p><button className="outline-button" onClick={()=>selectPlace(null)}>Вернуться к карте</button></div> : <div className="detail-welcome"><div className="welcome-icon"><Icon name="compass" size={24} /></div><h2>История<br />каждого места</h2><p>Выберите место на карте или в списке, чтобы увидеть фотографии, описание и архитектурный оригинал.</p><div className="welcome-divider" /><span className="eyebrow">НА КАРТЕ</span><ul><li><i style={{ background: categoryColors['landmark-replica'] }} />Копии достопримечательностей</li><li><i style={{ background: categoryColors['themed-town'] }} />Тематические города</li><li><i style={{ background: categoryColors['theme-park'] }} />Парки миниатюр</li></ul><span className="welcome-bottom">Атлас архитектурных копий Китая</span></div>}
     </aside>
     <div className="map-signature"><span>中国</span><div>CHINA REPLICAS<small>Атлас архитектурных копий</small></div></div>
   </main>;

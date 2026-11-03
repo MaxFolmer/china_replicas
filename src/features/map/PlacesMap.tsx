@@ -8,7 +8,11 @@ export const categoryColors: Record<string, string> = {
 function MapActions({ selected }: { selected: Place | null }) {
   const map = useMap();
   useEffect(() => {
-    if (selected) map.flyTo([selected.latitude, selected.longitude], 10, { duration: 1.2 });
+    if (!selected) return;
+    const point = map.project([selected.latitude, selected.longitude], 10);
+    const mobileOffset = matchMedia('(max-width: 700px)').matches ? innerHeight * 0.3 : 0;
+    const center = map.unproject(point.add([0, mobileOffset]), 10);
+    map.flyTo(center, 10, { duration: 1.2 });
   }, [selected, map]);
   return <div className="map-controls">
     <button title="Показать Китай" aria-label="Показать Китай" onClick={() => map.flyTo([31, 110], 5)}><Icon name="compass" /></button>

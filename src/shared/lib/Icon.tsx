@@ -1,4 +1,4 @@
-export type IconName = 'pin' | 'search' | 'landmark' | 'town' | 'park' | 'grid' | 'close' | 'arrow' | 'layers' | 'plus' | 'minus' | 'compass' | 'sun' | 'moon' | 'chevron';
+export type IconName = 'pin' | 'search' | 'landmark' | 'town' | 'park' | 'grid' | 'close' | 'arrow' | 'layers' | 'plus' | 'minus' | 'compass' | 'sun' | 'moon' | 'chevron' | 'share';
 const paths: Record<IconName, string> = {
   pin: 'M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0ZM15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
   search: 'm21 21-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',
@@ -12,6 +12,7 @@ const paths: Record<IconName, string> = {
   compass: 'm16 8-3 5-5 3 3-5 5-3ZM22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z',
   sun: 'M12 2v2m0 16v2M2 12h2m16 0h2M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
   moon: 'M21 13A9 9 0 0 1 11 3a9 9 0 1 0 10 10Z', chevron: 'm9 5 7 7-7 7',
+  share: 'M18 8a3 3 0 1 0-2.83-4M6 15a3 3 0 1 0 0 6m10.5-4.5-8-4.5m8-4.5-8 4.5',
 };
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;

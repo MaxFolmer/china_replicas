@@ -13,7 +13,7 @@ export const placeSchema = z.object({
   publication_status: z.enum(['draft','published','archived']),
 }).refine(v => (v.latitude === null) === (v.longitude === null), 'Укажите обе координаты или оставьте обе пустыми');
 export type PlaceInput = z.infer<typeof placeSchema>;
-export type EditorPlace = PlaceInput & { id: string; updated_at: string; last_verified_at: string | null };
+export type EditorPlace = PlaceInput & { id: string; updated_at: string; last_verified_at: string | null; city_name: string; category_name: string; image_count: number; source_count: number };
 export const sourceSchema = z.object({
   source_type: z.enum(['google','baidu','osm','wikidata','official','other']), source_url: httpUrl,
   source_latitude: nullableCoordinate(-90,90), source_longitude: nullableCoordinate(-180,180),
@@ -28,9 +28,9 @@ export type Lookup = { id: string; name: string; province_id?: string };
 export type Log = { id: string; verified_at: string; existence_status: string; visitor_status: string; notes: string; evidence_urls: string[] };
 function client() { if (!supabase) throw new Error('Подключение Supabase не настроено.'); return supabase; }
 export async function loadCatalog(from = 0) {
-  const {data,error,count} = await client().from('attractions').select('*',{count:'exact'}).order('updated_at',{ascending:false}).order('id').range(from,from+49);
+  const {data,error,count} = await client().from('attractions').select('*,cities(name),categories(name),attraction_images(id),sources(id)',{count:'exact'}).order('updated_at',{ascending:false}).order('id').range(from,from+49);
   if(error) throw error;
-  return { rows:(data || []).map(row => ({...row,name_zh:row.name_zh || '',original_name:row.original_name || '',city_id:row.city_id || '',category_id:row.category_id || ''})) as EditorPlace[], count:count || 0 };
+  return { rows:(data || []).map(row => ({...row,name_zh:row.name_zh || '',original_name:row.original_name || '',city_id:row.city_id || '',category_id:row.category_id || '',city_name:row.cities?.name || '',category_name:row.categories?.name || '',image_count:row.attraction_images?.length || 0,source_count:row.sources?.length || 0})) as EditorPlace[], count:count || 0 };
 }
 export async function loadLookups() {
   const results = await Promise.all(['categories','cities','provinces'].map(table => client().from(table).select('*').order('name').limit(1000)));
