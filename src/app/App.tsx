@@ -105,11 +105,19 @@ export function App() {
     if (!selected) return;
     const url = `${location.origin}/places/${encodeURIComponent(selected.slug)}`;
     try {
-      if (navigator.share) await navigator.share({ title: selected.name, text: selected.description, url });
-      else { await navigator.clipboard.writeText(url); setShareStatus('Ссылка скопирована'); }
-    } catch (error) {
-      if ((error as DOMException).name !== 'AbortError') setShareStatus('Не удалось скопировать ссылку');
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(url);
+      else {
+        const input = document.createElement('textarea');
+        input.value = url; input.style.position = 'fixed'; input.style.opacity = '0';
+        document.body.append(input); input.select();
+        if (!document.execCommand('copy')) throw new Error('copy_failed');
+        input.remove();
+      }
+      setShareStatus('Ссылка скопирована');
+    } catch {
+      setShareStatus('Не удалось скопировать ссылку');
     }
+    window.setTimeout(() => setShareStatus(''), 2400);
   }
   function changeCategory(slug: string) { setCategory(slug); selectPlace(null); }
   function toggleDemo() {
@@ -141,11 +149,10 @@ export function App() {
     </aside>}
     <aside className={`details-panel glass ${selected || notFound ? 'has-selection' : ''}`} aria-label="Информация о месте">
       {selected ? <>
-        <div className="detail-top"><span className="eyebrow">{selected.demo ? 'ПРИМЕР МЕСТА' : 'МЕСТО НА КАРТЕ'}</span><div className="detail-top-actions"><button aria-label="Поделиться карточкой" title="Поделиться" onClick={sharePlace}><Icon name="share" size={18} /></button><button aria-label="Закрыть карточку" onClick={() => selectPlace(null)}><Icon name="close" size={18} /></button></div></div>
+        <div className="detail-top"><span className="eyebrow">{selected.demo ? 'ПРИМЕР МЕСТА' : 'МЕСТО НА КАРТЕ'}</span><div className="detail-top-actions"><button aria-label="Скопировать ссылку на карточку" title="Скопировать ссылку" onClick={sharePlace}><Icon name="share" size={18} /></button><button aria-label="Закрыть карточку" onClick={() => selectPlace(null)}><Icon name="close" size={18} /></button></div></div>
         <div className="detail-scroll">
           <PhotoGallery key={selected.id} place={selected}/>
           <div className="detail-content"><span className="detail-city"><Icon name="pin" size={14} />{selected.city}</span><h2>{selected.name}</h2><p className="detail-description">{selected.description || 'Описание пока не добавлено.'}</p>
-          {shareStatus && <p className="share-status" role="status">{shareStatus}</p>}
           {selected.original && <div className="original-block"><span>ВДОХНОВЛЕНО</span><strong>{selected.original}</strong></div>}
           <div className="coordinates"><span>Координаты · WGS84</span><code>{selected.latitude.toFixed(5)}, {selected.longitude.toFixed(5)}</code></div>
           {selected.demo && <p className="demo-note">Демонстрационная карточка. Существование и доступность объекта требуют отдельной проверки.</p>}
@@ -157,5 +164,6 @@ export function App() {
       </> : notFound ? <div className="not-found"><button aria-label="Закрыть" onClick={()=>selectPlace(null)}><Icon name="close" size={18}/></button><span>404</span><Icon name="pin" size={30}/><h2>Место не найдено</h2><p>Возможно, объект ещё не опубликован или адрес изменился.</p><button className="outline-button" onClick={()=>selectPlace(null)}>Вернуться к карте</button></div> : <div className="detail-welcome"><div className="welcome-icon"><Icon name="compass" size={24} /></div><h2>История<br />каждого места</h2><p>Выберите место на карте или в списке, чтобы увидеть фотографии, описание и архитектурный оригинал.</p><div className="welcome-divider" /><span className="eyebrow">НА КАРТЕ</span><ul><li><i style={{ background: categoryColors['landmark-replica'] }} />Копии достопримечательностей</li><li><i style={{ background: categoryColors['themed-town'] }} />Тематические города</li><li><i style={{ background: categoryColors['theme-park'] }} />Парки миниатюр</li></ul><span className="welcome-bottom">Атлас архитектурных копий Китая</span></div>}
     </aside>
     <div className="map-signature"><span>中国</span><div>CHINA REPLICAS<small>Атлас архитектурных копий</small></div></div>
+    {shareStatus && <div className={`copy-toast ${shareStatus.startsWith('Не удалось') ? 'error' : ''}`} role="status"><Icon name={shareStatus.startsWith('Не удалось') ? 'close' : 'share'} size={17}/><span>{shareStatus}</span></div>}
   </main>;
 }

@@ -12,7 +12,7 @@ const paths: Record<IconName, string> = {
   compass: 'm16 8-3 5-5 3 3-5 5-3ZM22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z',
   sun: 'M12 2v2m0 16v2M2 12h2m16 0h2M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
   moon: 'M21 13A9 9 0 0 1 11 3a9 9 0 1 0 10 10Z', chevron: 'm9 5 7 7-7 7',
-  share: 'M18 8a3 3 0 1 0-2.83-4M6 15a3 3 0 1 0 0 6m10.5-4.5-8-4.5m8-4.5-8 4.5',
+  share: 'M10 13a5 5 0 0 0 7.07 0l2-2A5 5 0 0 0 12 3.93l-1.15 1.15M14 11a5 5 0 0 0-7.07 0l-2 2A5 5 0 0 0 12 20.07l1.15-1.15',
 };
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;
