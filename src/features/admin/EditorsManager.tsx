@@ -16,7 +16,18 @@ export function EditorsManager({onClose}:{onClose:()=>void}){
   const [editors,setEditors]=useState<Editor[]>([]);const [invitations,setInvitations]=useState<Invitation[]>([]);
   const [email,setEmail]=useState('');const [inviteUrl,setInviteUrl]=useState('');
   const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');
-  const invoke=async(body:Record<string,unknown>)=>{const {data,error}=await supabase!.functions.invoke('editor-invitations',{body});if(error)throw error;if(data?.error)throw new Error(data.error);return data;};
+  const invoke=async(body:Record<string,unknown>)=>{
+    const {data:sessionData,error:sessionError}=await supabase!.auth.getSession();
+    const accessToken=sessionData.session?.access_token;
+    if(sessionError||!accessToken)throw new Error('session_expired');
+    const {data,error}=await supabase!.functions.invoke('editor-invitations',{
+      body,
+      headers:{Authorization:`Bearer ${accessToken}`},
+    });
+    if(error)throw error;
+    if(data?.error)throw new Error(data.error);
+    return data;
+  };
   const load=useCallback(async()=>{setLoading(true);setError('');try{const data=await invoke({action:'list'});setEditors(data.editors||[]);setInvitations(data.invitations||[]);}catch(e){setError(friendlyError(e));}finally{setLoading(false);}},[]);
   useEffect(()=>{void load();},[load]);
   async function create(e:FormEvent){e.preventDefault();setBusy(true);setError('');setNotice('');setInviteUrl('');try{const data=await invoke({action:'create',email:email.trim()});setInviteUrl(data.invite_url);setEmail('');setNotice('Приглашение создано и действует 24 часа.');await load();}catch(e){setError(friendlyError(e));}finally{setBusy(false);}}
