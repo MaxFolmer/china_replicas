@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 const service = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 const allowedOrigins = new Set([
   'https://china-replicas.vercel.app',
@@ -28,18 +29,20 @@ async function sha256(value: string) {
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2,'0')).join('');
 }
-async function requester(req: Request) {
-  const authorization = req.headers.get('Authorization') || '';
-  const jwt = authorization.replace(/^Bearer\s+/i,'');
-  if (!jwt) return null;
-  const { data, error } = await service.auth.getUser(jwt);
-  return error ? null : data.user;
-}
 async function owner(req: Request) {
-  const user = await requester(req);
+  const authorization = req.headers.get('Authorization') || '';
+  const userClient = createClient(supabaseUrl, anonKey, {
+    auth: { persistSession: false },
+    global: { headers: { Authorization: authorization } },
+  });
+  const [{ data: userData, error: userError }, { data: role, error: roleError }] = await Promise.all([
+    userClient.auth.getUser(),
+    userClient.rpc('my_admin_role'),
+  ]);
+  if (userError || roleError || role !== 'owner') return null;
+  const user = userData.user;
   if (!user) return null;
-  const { data } = await service.rpc('service_admin_role', { p_user_id: user.id });
-  return data === 'owner' ? user : null;
+  return user;
 }
 
 Deno.serve(async req => {
