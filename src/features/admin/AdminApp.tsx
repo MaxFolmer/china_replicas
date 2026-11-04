@@ -9,32 +9,23 @@ import { ImportQueue } from './ImportQueue';
 import './admin.css';
 function Login() {
   const [email,setEmail]=useState('');const [password,setPassword]=useState('');
-  const [mode,setMode]=useState<'password'|'link'>('password');
-  const [busy,setBusy]=useState(false);const [sent,setSent]=useState(false);const [error,setError]=useState('');
-  function switchMode(value:'password'|'link'){setMode(value);setPassword('');setError('');setSent(false);}
+  const [busy,setBusy]=useState(false);const [error,setError]=useState('');
   async function submit(e:FormEvent) {
     e.preventDefault();setBusy(true);setError('');
     try {
-      if(mode==='password'){
-        const {error}=await supabase!.auth.signInWithPassword({email:email.trim(),password});
-        setPassword('');
-        if(error)setError(error.status===429?'Слишком много попыток. Подождите немного.':'Не удалось войти. Проверьте email и пароль или используйте вход по ссылке.');
-      }else{
-        const {error}=await supabase!.auth.signInWithOtp({email:email.trim(),options:{emailRedirectTo:`${location.origin}/admin`,shouldCreateUser:false}});
-        if(error)setError(error.code==='over_email_send_rate_limit'?'Лимит писем для входа исчерпан. Повторите позже. Если пароль уже установлен, выберите «По паролю».':error.status===429?'Слишком много попыток входа. Подождите несколько минут.':'Не удалось отправить ссылку. Проверьте email и повторите попытку.');else setSent(true);
-      }
+      const {error}=await supabase!.auth.signInWithPassword({email:email.trim(),password});
+      setPassword('');
+      if(error)setError(error.status===429?'Слишком много попыток. Подождите немного.':'Не удалось войти. Проверьте email и пароль.');
     }catch{setError('Не удалось подключиться. Повторите попытку.');}
     finally{setBusy(false);}
   }
   return <main className="admin-login"><a className="admin-back" href="/">← Вернуться к карте</a><div className="login-card"><p className="admin-eyebrow">CHINA REPLICAS / РЕДАКЦИЯ</p><h1>Вход в редактор</h1><p>Управление местами, источниками и проверками.</p>
-    <div className="login-methods" role="group" aria-label="Способ входа"><button type="button" aria-pressed={mode==='password'} disabled={busy} onClick={()=>switchMode('password')}>По паролю</button><button type="button" aria-pressed={mode==='link'} disabled={busy} onClick={()=>switchMode('link')}>По ссылке</button></div>
-    <form onSubmit={submit}><label>Email<input type="email" autoComplete="username" required value={email} disabled={busy} onChange={e=>{setEmail(e.target.value);setSent(false);}} placeholder="you@example.com"/></label>
-      {mode==='password'&&<label>Пароль<input type="password" autoComplete="current-password" required value={password} disabled={busy} onChange={e=>setPassword(e.target.value)}/></label>}
-      <button className="admin-button primary" disabled={busy||(mode==='link'&&sent)}>{busy?'Подождите…':mode==='password'?'Войти':sent?'Ссылка отправлена':'Получить ссылку для входа'}</button>
+    <form onSubmit={submit}><label>Email<input type="email" autoComplete="username" required value={email} disabled={busy} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/></label>
+      <label>Пароль<input type="password" autoComplete="current-password" required value={password} disabled={busy} onChange={e=>setPassword(e.target.value)}/></label>
+      <button className="admin-button primary" disabled={busy}>{busy?'Подождите…':'Войти'}</button>
     </form>
-    {sent&&<div className="admin-success" role="status">Если аккаунт существует, письмо со ссылкой для входа отправлено. Проверьте почту.</div>}
     {error&&<p className="admin-alert" role="alert">{error}</p>}
-    <small>{mode==='password'?'Пароль ещё не установлен или забыт? Войдите по ссылке, затем откройте «Пароль» в админке.':'Вход по ссылке доступен существующим аккаунтам. Право редактирования назначает владелец проекта.'}</small>
+    <small>Доступ к редактору получают только аккаунты с назначенной ролью. Если пароль утрачен, обратитесь к владельцу проекта.</small>
   </div></main>;
 }
 function Workspace({session}:{session:Session}) {
