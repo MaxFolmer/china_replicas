@@ -8,7 +8,7 @@ test('migrations, coordinate constraints and access boundaries', async t => {
   const db = new PGlite();
   t.after(() => db.close());
   await db.exec(`
-    create role anon nologin; create role authenticated nologin;
+    create role anon nologin; create role authenticated nologin; create role service_role nologin;
     create schema auth;
     create schema storage;
     create table auth.users (id uuid primary key);
@@ -18,8 +18,8 @@ test('migrations, coordinate constraints and access boundaries', async t => {
     create function auth.uid() returns uuid language sql stable as $$
       select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
     $$;
-    grant usage on schema auth, storage to anon, authenticated;
-    grant execute on function auth.uid() to anon, authenticated;
+    grant usage on schema auth, storage to anon, authenticated, service_role;
+    grant execute on function auth.uid() to anon, authenticated, service_role;
     grant select, insert, update, delete on storage.objects to authenticated;
   `);
   const migrations = new URL('../supabase/migrations/', import.meta.url);
@@ -33,7 +33,7 @@ test('migrations, coordinate constraints and access boundaries', async t => {
   const published = '20000000-0000-4000-8000-000000000001';
   const draft = '20000000-0000-4000-8000-000000000002';
   await db.query('insert into auth.users (id) values ($1), ($2), ($3)', [admin, alice, bob]);
-  await db.query('insert into private.admins (user_id) values ($1)', [admin]);
+  await db.query("insert into private.admins (user_id,role) values ($1,'owner')", [admin]);
   await db.query(`insert into public.attractions (id,slug,name,latitude,longitude,existence_status,publication_status,last_verified_at)
     values ($1,'published','Published',30,120,'exists','published',now()),
       ($2,'draft','Draft',null,null,'unknown','draft',null)`, [published, draft]);
@@ -123,6 +123,21 @@ test('migrations, coordinate constraints and access boundaries', async t => {
     await assert.rejects(as('authenticated', alice, () => save(newDraft)), /editor_required/);
     await assert.rejects(as('authenticated', alice, () => addCity('Test province','Test city')), /editor_required/);
     await assert.rejects(as('anon', null, () => save(newDraft)), /permission denied/);
+  });
+  await t.test('only the owner service workflow can create and accept editor invitations', async () => {
+    assert.equal((await as('authenticated',admin,()=>db.query('select public.my_admin_role() as role'))).rows[0].role,'owner');
+    assert.equal((await as('authenticated',alice,()=>db.query('select public.my_admin_role() as role'))).rows[0].role,null);
+    await assert.rejects(as('authenticated',admin,()=>db.query("select public.service_create_editor_invitation($1,'new@example.com',$2,now()+interval '1 day')",[admin,'a'.repeat(64)])),/permission denied/);
+    await assert.rejects(as('service_role',null,()=>db.query("select public.service_create_editor_invitation($1,'blocked@example.com',$2,now()+interval '1 day')",[alice,'b'.repeat(64)])),/owner_required/);
+    await as('service_role',null,async()=>{
+      const invite=(await db.query("select (public.service_create_editor_invitation($1,'new@example.com',$2,now()+interval '1 day')).id as id",[admin,'c'.repeat(64)])).rows[0];
+      assert.ok(invite.id);
+      assert.equal((await db.query('select count(*)::int as count from public.service_get_editor_invitation($1)', ['c'.repeat(64)])).rows[0].count,1);
+      await db.query('select public.service_accept_editor_invitation($1,$2,$3)',['c'.repeat(64),'new@example.com',alice]);
+      assert.equal((await db.query('select public.service_admin_role($1) as role',[alice])).rows[0].role,'editor');
+      assert.equal((await db.query('select accepted_at is not null as accepted from public.service_list_editor_invitations($1) where id=$2',[admin,invite.id])).rows[0].accepted,true);
+      assert.equal((await db.query('select count(*)::int as count from public.service_get_editor_invitation($1)', ['c'.repeat(64)])).rows[0].count,0);
+    });
   });
   await t.test('admin creates a draft and saves sources atomically', async () => {
     await as('authenticated', admin, async () => {

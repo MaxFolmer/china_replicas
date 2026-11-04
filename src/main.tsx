@@ -4,5 +4,7 @@ import { App } from './app/App';
 import 'leaflet/dist/leaflet.css';
 import './app/styles.css';
 const AdminApp = lazy(() => import('./features/admin/AdminApp'));
+const AdminRegistration = lazy(() => import('./features/admin/AdminRegistration'));
+const registrationRoute = location.pathname === '/admin/register' || location.pathname === '/admin/register/';
 const adminRoute = location.pathname === '/admin' || location.pathname === '/admin/';
-createRoot(document.getElementById('root')!).render(<StrictMode><Suspense fallback={<p role="status">Загрузка…</p>}>{adminRoute ? <AdminApp /> : <App />}</Suspense></StrictMode>);
+createRoot(document.getElementById('root')!).render(<StrictMode><Suspense fallback={<p role="status">Загрузка…</p>}>{registrationRoute ? <AdminRegistration /> : adminRoute ? <AdminApp /> : <App />}</Suspense></StrictMode>);

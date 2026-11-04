@@ -6,6 +6,7 @@ import { PlaceEditor, publicationLabels } from './PlaceEditor';
 import { PasswordSettings } from './PasswordSettings';
 import { ImportWorkspace } from './ImportWorkspace';
 import { ImportQueue } from './ImportQueue';
+import { EditorsManager } from './EditorsManager';
 import './admin.css';
 function Login() {
   const [email,setEmail]=useState('');const [password,setPassword]=useState('');
@@ -28,25 +29,25 @@ function Login() {
     <small>Доступ к редактору получают только аккаунты с назначенной ролью. Если пароль утрачен, обратитесь к владельцу проекта.</small>
   </div></main>;
 }
-function Workspace({session}:{session:Session}) {
+function Workspace({session,role}:{session:Session;role:'owner'|'editor'}) {
   const [rows,setRows]=useState<EditorPlace[]>([]);const [count,setCount]=useState(0);const [page,setPage]=useState(0);
   const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [success,setSuccess]=useState('');
   const [search,setSearch]=useState('');const [status,setStatus]=useState('all');const [city,setCity]=useState('all');const [category,setCategory]=useState('all');const [quality,setQuality]=useState('all');
-  const [selected,setSelected]=useState<EditorPlace|null|undefined>(undefined);const [dirty,setDirty]=useState(false);const [accountSettings,setAccountSettings]=useState(false);const [imports,setImports]=useState<'upload'|'queue'|false>(false);
+  const [selected,setSelected]=useState<EditorPlace|null|undefined>(undefined);const [dirty,setDirty]=useState(false);const [accountSettings,setAccountSettings]=useState(false);const [editorsOpen,setEditorsOpen]=useState(false);const [imports,setImports]=useState<'upload'|'queue'|false>(false);
   const load=useCallback(async()=>{setLoading(true);setError('');try{const result=await loadCatalog(page*50);setRows(result.rows);setCount(result.count);}catch(e){setError(friendlyError(e));}finally{setLoading(false);}},[page]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{const handler=(event:BeforeUnloadEvent)=>{if(dirty){event.preventDefault();event.returnValue='';}};window.addEventListener('beforeunload',handler);return()=>window.removeEventListener('beforeunload',handler);},[dirty]);
   function leave() {return !dirty || window.confirm('Есть несохранённые изменения. Закрыть редактор без сохранения?');}
-  function open(place:EditorPlace|null|undefined) {if(leave()){setSelected(place);setAccountSettings(false);setImports(false);setDirty(false);setSuccess('');}}
+  function open(place:EditorPlace|null|undefined) {if(leave()){setSelected(place);setAccountSettings(false);setEditorsOpen(false);setImports(false);setDirty(false);setSuccess('');}}
   async function logout(){if(!leave())return;const {error}=await supabase!.auth.signOut();if(error)setError('Не удалось выйти. Попробуйте ещё раз.');}
   async function saved(){setDirty(false);setSelected(undefined);setSuccess('Объект сохранён.');await load();}
   const cities=[...new Set(rows.map(p=>p.city_name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru'));
   const categories=[...new Set(rows.map(p=>p.category_name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru'));
   const incomplete=(p:EditorPlace)=>!p.description.trim()||p.latitude===null||p.longitude===null||!p.city_id||!p.category_id||p.image_count===0||p.source_count===0;
   const visible=rows.filter(p=>(status==='all'||p.publication_status===status)&&(city==='all'||p.city_name===city)&&(category==='all'||p.category_name===category)&&(quality==='all'||quality==='incomplete'&&incomplete(p)||quality==='unverified'&&(!p.last_verified_at||p.existence_status!=='exists')||quality==='no-photo'&&p.image_count===0||quality==='ready'&&!incomplete(p)&&p.existence_status==='exists')&&`${p.name} ${p.name_zh} ${p.slug}`.toLowerCase().includes(search.toLowerCase().trim()));
-  return <div className="admin-workspace"><header className="admin-header"><a className="admin-brand" href="/">CR <span>CHINA REPLICAS</span></a><span className="editor-label">Редактор каталога</span><div><span className="admin-email">{session.user.email}</span><button className="admin-button" onClick={()=>{if(leave()){setSelected(undefined);setImports(false);setDirty(false);setAccountSettings(true);}}}>Пароль</button><button onClick={logout} className="admin-button">Выйти</button></div></header>
-    <div className="admin-shell"><aside className="admin-sidebar"><span className="admin-eyebrow">РАБОЧАЯ ОБЛАСТЬ</span><button className={!imports&&!accountSettings&&selected===undefined?'sidebar-active':''} onClick={()=>open(undefined)}>Объекты <span>{count}</span></button><button className={imports==='upload'?'sidebar-active':''} onClick={()=>{if(leave()){setImports('upload');setAccountSettings(false);setSelected(undefined);setDirty(false);}}}>Импорт</button><button className={imports==='queue'?'sidebar-active':''} onClick={()=>{if(leave()){setImports('queue');setAccountSettings(false);setSelected(undefined);setDirty(false);}}}>Очередь</button><a href="/">Открыть карту ↗</a><p>Публикуйте объекты после проверки координат и источников.</p></aside>
-    <main className="admin-main">{accountSettings?<PasswordSettings onClose={()=>setAccountSettings(false)}/>:imports==='upload'?<ImportWorkspace onClose={()=>setImports(false)}/>:imports==='queue'?<ImportQueue onClose={()=>setImports(false)}/>:selected!==undefined?<PlaceEditor key={selected?.id || 'new'} place={selected} onDirty={setDirty} onCancel={()=>open(undefined)} onSaved={saved}/>:<>
+  return <div className="admin-workspace"><header className="admin-header"><a className="admin-brand" href="/">CR <span>CHINA REPLICAS</span></a><span className="editor-label">Редактор каталога</span><div><span className="admin-email">{session.user.email}</span><button className="admin-button" onClick={()=>{if(leave()){setSelected(undefined);setImports(false);setEditorsOpen(false);setDirty(false);setAccountSettings(true);}}}>Пароль</button><button onClick={logout} className="admin-button">Выйти</button></div></header>
+    <div className="admin-shell"><aside className="admin-sidebar"><span className="admin-eyebrow">РАБОЧАЯ ОБЛАСТЬ</span><button className={!imports&&!accountSettings&&!editorsOpen&&selected===undefined?'sidebar-active':''} onClick={()=>open(undefined)}>Объекты <span>{count}</span></button><button className={imports==='upload'?'sidebar-active':''} onClick={()=>{if(leave()){setImports('upload');setAccountSettings(false);setEditorsOpen(false);setSelected(undefined);setDirty(false);}}}>Импорт</button><button className={imports==='queue'?'sidebar-active':''} onClick={()=>{if(leave()){setImports('queue');setAccountSettings(false);setEditorsOpen(false);setSelected(undefined);setDirty(false);}}}>Очередь</button>{role==='owner'&&<button className={editorsOpen?'sidebar-active':''} onClick={()=>{if(leave()){setEditorsOpen(true);setImports(false);setAccountSettings(false);setSelected(undefined);setDirty(false);}}}>Редакторы</button>}<a href="/">Открыть карту ↗</a><p>Публикуйте объекты после проверки координат и источников.</p></aside>
+    <main className="admin-main">{accountSettings?<PasswordSettings onClose={()=>setAccountSettings(false)}/>:editorsOpen?<EditorsManager onClose={()=>setEditorsOpen(false)}/>:imports==='upload'?<ImportWorkspace onClose={()=>setImports(false)}/>:imports==='queue'?<ImportQueue onClose={()=>setImports(false)}/>:selected!==undefined?<PlaceEditor key={selected?.id || 'new'} place={selected} onDirty={setDirty} onCancel={()=>open(undefined)} onSaved={saved}/>:<>
       <div className="editor-heading"><div><p className="admin-eyebrow">КАТАЛОГ</p><h1>Объекты</h1><p className="admin-subtitle">Черновики, опубликованные места и архив</p></div><button className="admin-button primary" onClick={()=>open(null)}>+ Новое место</button></div>
       {error&&<div className="admin-alert" role="alert">{error}<button onClick={load}>Повторить</button></div>}{success&&<div className="admin-success" role="status">{success}</div>}
       <div className="admin-filters"><label className="admin-search"><span className="visually-hidden">Поиск на текущей странице</span><input placeholder="Поиск по названию или slug" value={search} onChange={e=>setSearch(e.target.value)}/></label><label><span className="visually-hidden">Статус объекта</span><select value={status} onChange={e=>setStatus(e.target.value)}><option value="all">Все статусы</option>{Object.entries(publicationLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label><label><span className="visually-hidden">Город</span><select value={city} onChange={e=>setCity(e.target.value)}><option value="all">Все города</option>{cities.map(value=><option key={value}>{value}</option>)}</select></label><label><span className="visually-hidden">Категория</span><select value={category} onChange={e=>setCategory(e.target.value)}><option value="all">Все категории</option>{categories.map(value=><option key={value}>{value}</option>)}</select></label><label><span className="visually-hidden">Полнота карточки</span><select value={quality} onChange={e=>setQuality(e.target.value)}><option value="all">Любая полнота</option><option value="incomplete">Есть незаполненные поля</option><option value="unverified">Не проверено</option><option value="no-photo">Без фотографий</option><option value="ready">Готово к публикации</option></select></label><span>{visible.length} из {rows.length} на странице</span></div>
@@ -56,7 +57,7 @@ function Workspace({session}:{session:Session}) {
 }
 export default function AdminApp() {
   const [session,setSession]=useState<Session|null>(null);const [loading,setLoading]=useState(true);
-  const [editor,setEditor]=useState<boolean|null>(null);const [checkedUserId,setCheckedUserId]=useState<string|null>(null);const userId=session?.user.id;const [error,setError]=useState('');const [attempt,setAttempt]=useState(0);
+  const [role,setRole]=useState<'owner'|'editor'|null>(null);const [checkedUserId,setCheckedUserId]=useState<string|null>(null);const userId=session?.user.id;const [error,setError]=useState('');const [attempt,setAttempt]=useState(0);
   useEffect(()=>{
     if(!supabase){setLoading(false);return;}
     let active=true;
@@ -65,14 +66,14 @@ export default function AdminApp() {
     return()=>{active=false;data.subscription.unsubscribe();};
   },[]);
   useEffect(()=>{
-    setEditor(null);setCheckedUserId(null);setError('');if(!userId)return;
-    let active=true;supabase!.rpc('is_editor').then(({data,error})=>{if(active){if(error)setError('Не удалось проверить права. Проверьте подключение и применение миграции админки.');else {setEditor(data===true);setCheckedUserId(userId);}}});
+    setRole(null);setCheckedUserId(null);setError('');if(!userId)return;
+    let active=true;supabase!.rpc('my_admin_role').then(({data,error})=>{if(active){if(error)setError('Не удалось проверить права. Проверьте подключение и применение миграции админки.');else {setRole(data==='owner'?'owner':data==='editor'?'editor':null);setCheckedUserId(userId);}}});
     return()=>{active=false;};
   },[userId,attempt]);
   if(!supabase)return <main className="admin-message"><h1>База не подключена</h1><p>Настройте переменные подключения Supabase.</p><a href="/">К карте</a></main>;
   if(loading)return <main className="admin-message" role="status">Проверяем сеанс…</main>;
   if(!session)return <Login/>;
-  if(error||editor===false)return <main className="admin-message"><p className="admin-eyebrow">CHINA REPLICAS / РЕДАКЦИЯ</p><h1>{error?'Не удалось проверить доступ':'Доступ редактора не назначен'}</h1><p>{error||`Вы вошли как ${session.user.email}. Владелец проекта должен назначить права этому аккаунту.`}</p><div><button className="admin-button" onClick={()=>setAttempt(n=>n+1)}>Проверить доступ</button><button className="admin-button" onClick={()=>supabase!.auth.signOut()}>Выйти</button><a href="/">К карте</a></div></main>;
-  if(editor===null||checkedUserId!==session.user.id)return <main className="admin-message" role="status">Проверяем права редактора…</main>;
-  return <Workspace session={session}/>;
+  if(error||(checkedUserId===session.user.id&&role===null))return <main className="admin-message"><p className="admin-eyebrow">CHINA REPLICAS / РЕДАКЦИЯ</p><h1>{error?'Не удалось проверить доступ':'Доступ редактора не назначен'}</h1><p>{error||`Вы вошли как ${session.user.email}. Владелец проекта должен назначить права этому аккаунту.`}</p><div><button className="admin-button" onClick={()=>setAttempt(n=>n+1)}>Проверить доступ</button><button className="admin-button" onClick={()=>supabase!.auth.signOut()}>Выйти</button><a href="/">К карте</a></div></main>;
+  if(role===null||checkedUserId!==session.user.id)return <main className="admin-message" role="status">Проверяем права редактора…</main>;
+  return <Workspace session={session} role={role}/>;
 }
