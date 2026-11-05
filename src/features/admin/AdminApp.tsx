@@ -26,7 +26,7 @@ function Login() {
       <button className="admin-button primary" disabled={busy}>{busy?'Подождите…':'Войти'}</button>
     </form>
     {error&&<p className="admin-alert" role="alert">{error}</p>}
-    <small>Доступ к редактору получают только аккаунты с назначенной ролью. Если пароль утрачен, обратитесь к владельцу проекта.</small>
+    <small>Нет доступа? <a href="/admin/register">Подайте заявку редактора</a>. Если пароль утрачен, обратитесь к владельцу проекта.</small>
   </div></main>;
 }
 function Workspace({session,role}:{session:Session;role:'owner'|'editor'}) {

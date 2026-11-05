@@ -11,7 +11,7 @@ test('migrations, coordinate constraints and access boundaries', async t => {
     create role anon nologin; create role authenticated nologin; create role service_role nologin;
     create schema auth;
     create schema storage;
-    create table auth.users (id uuid primary key);
+    create table auth.users (id uuid primary key, email varchar(255));
     create table storage.buckets (id text primary key, name text not null, public boolean not null default false, file_size_limit bigint, allowed_mime_types text[]);
     create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text not null references storage.buckets(id), name text not null);
     alter table storage.objects enable row level security;
@@ -32,7 +32,7 @@ test('migrations, coordinate constraints and access boundaries', async t => {
   const bob = '10000000-0000-4000-8000-000000000003';
   const published = '20000000-0000-4000-8000-000000000001';
   const draft = '20000000-0000-4000-8000-000000000002';
-  await db.query('insert into auth.users (id) values ($1), ($2), ($3)', [admin, alice, bob]);
+  await db.query('insert into auth.users (id,email) values ($1,$4), ($2,$5), ($3,$6)', [admin, alice, bob, 'owner@example.com', 'alice@example.com', 'bob@example.com']);
   await db.query("insert into private.admins (user_id,role) values ($1,'owner')", [admin]);
   await db.query(`insert into public.attractions (id,slug,name,latitude,longitude,existence_status,publication_status,last_verified_at)
     values ($1,'published','Published',30,120,'exists','published',now()),
@@ -138,6 +138,22 @@ test('migrations, coordinate constraints and access boundaries', async t => {
       assert.equal((await db.query('select accepted_at is not null as accepted from public.service_list_editor_invitations($1) where id=$2',[admin,invite.id])).rows[0].accepted,true);
       assert.equal((await db.query('select count(*)::int as count from public.service_get_editor_invitation($1)', ['c'.repeat(64)])).rows[0].count,0);
     });
+  });
+  await t.test('editor applications require a real account and owner review', async () => {
+    await assert.rejects(as('anon',null,()=>db.query("select public.submit_editor_application($1,'fake@example.com','@fake','', '')",['90000000-0000-4000-8000-000000000001'])),/account_required/);
+    await db.exec('begin; set local role anon');
+    assert.equal((await db.query("select public.submit_editor_application($1,'bob@example.com','@bob','Хочу помочь проекту','') as ok",[bob])).rows[0].ok,true);
+    await db.exec('reset role; commit');
+    await assert.rejects(as('anon',null,()=>db.query('select * from public.editor_applications')),/permission denied/);
+    await assert.rejects(as('authenticated',alice,()=>db.query('select * from public.admin_list_editor_applications()')),/owner_required/);
+    await db.exec('begin; set local role authenticated');
+    await db.query("select set_config('request.jwt.claim.sub', $1, true)",[admin]);
+    const application=(await db.query('select * from public.admin_list_editor_applications()')).rows[0];
+    assert.equal(application.email,'bob@example.com');assert.equal(application.status,'pending');
+    assert.equal((await db.query("select public.admin_review_editor_application($1,'approve') as ok",[application.id])).rows[0].ok,true);
+    assert.equal((await db.query('select public.my_admin_role() as role')).rows[0].role,'owner');
+    await db.exec('reset role; commit');
+    await as('authenticated',bob,async()=>assert.equal((await db.query('select public.my_admin_role() as role')).rows[0].role,'editor'));
   });
   await t.test('admin creates a draft and saves sources atomically', async () => {
     await as('authenticated', admin, async () => {
